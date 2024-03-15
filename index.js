@@ -1,14 +1,9 @@
-// const { getStaticData } = require('./utils/tokenStaticDataHelper.js');
-
-const { getStatisDataViaMirrors } = require('./utils/metadataScrapeHelper');
+const { getStaticDataViaMirrors } = require('./utils/metadataScrapeHelper');
+// const { getStaticData } = require('./utils/tokenStaticDataHelper');
 
 async function main() {
 	// await getStaticData('0.0.848553', [1]);
-	getStatisDataViaMirrors(848553, 'LSH - Gen 2').then((data) => {
-		console.log(data);
-	}).catch((error) => {
-		console.error(error);
-	});
+	await getStaticDataViaMirrors(848553, 'LSH - Gen 2');
 }
 
 main().then(() => {

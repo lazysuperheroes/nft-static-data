@@ -1,4 +1,4 @@
-const { createDirectus, staticToken, rest, readItems } = require('@directus/sdk');
+const { createDirectus, staticToken, rest, readItems, createItems } = require('@directus/sdk');
 require('dotenv').config();
 
 
@@ -24,6 +24,12 @@ async function getStaticData(addess, serials) {
 	console.log(data);
 }
 
+async function writeStaticData(tokenStaticDataList) {
+	console.log('Writing', tokenStaticDataList.length, 'items');
+	const data = await client.request(createItems('TokenStaticData', tokenStaticDataList));
+	console.log(data.length, 'items created');
+}
+
 // define a Class for the TokenStaticData items with the same fields as the table
 // uid, Address, Serial, Metadata, RawMetadata, Image, Attributes, NFTName, Collection
 class TokenStaticData {
@@ -43,6 +49,20 @@ class TokenStaticData {
 	toString() {
 		return `TokenStaticData: ${this.uid}, ${this.address}, ${this.serial}, ${this.metadata}, ${this.rawMetadata}, ${this.image}, ${this.attributes}, ${this.nftName}, ${this.collection}`;
 	}
+
+	toObject() {
+		return {
+			uid: this.uid,
+			address: this.address,
+			serial: this.serial,
+			metadata: this.metadata,
+			rawMetadata: this.rawMetadata,
+			image: this.image,
+			attributes: this.attributes,
+			nftName: this.nftName,
+			collection: this.collection,
+		};
+	}
 }
 
-module.exports = { getStaticData, TokenStaticData };
+module.exports = { getStaticData, TokenStaticData, writeStaticData };

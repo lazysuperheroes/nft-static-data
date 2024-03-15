@@ -1,5 +1,5 @@
 const fetch = require('cross-fetch');
-const { TokenStaticData } = require('./tokenStaticDataHelper');
+const { TokenStaticData, writeStaticData } = require('./tokenStaticDataHelper');
 
 const maxRetries = 20;
 const ipfsGateways = ['https://cloudflare-ipfs.com/ipfs/', 'https://ipfs.eth.aragon.network/ipfs/', 'https://ipfs.io/ipfs/', 'https://ipfs.eternum.io/ipfs/', 'https://cloudflare-ipfs.com/ipfs/'];
@@ -7,10 +7,10 @@ let totalCompleted = 0;
 let totalToProcess = 0;
 const errorSerials = [];
 
-async function getStatisDataViaMirrors(tokenId, collection, routeUrl = null, tokenStaticDataList = []) {
+async function getStaticDataViaMirrors(tokenId, collection, routeUrl = null) {
 
 	const baseUrl = 'https://mainnet-public.mirrornode.hedera.com';
-	if (!routeUrl) routeUrl = `/api/v1/tokens/${tokenId}/nfts/?limit=5`;
+	if (!routeUrl) routeUrl = `/api/v1/tokens/${tokenId}/nfts/?limit=100`;
 
 	const json = await fetchJson(baseUrl + routeUrl);
 	if (json == null) {
@@ -20,22 +20,27 @@ async function getStatisDataViaMirrors(tokenId, collection, routeUrl = null, tok
 	}
 	const nfts = json.nfts;
 	totalToProcess = totalToProcess + nfts.length;
+	const tokenStaticDataList = [];
 	Promise.all(nfts.map((nft) => processNFT(nft, tokenId, collection))).then(token => {
+		// should get back a list of TokenStaticData objects
 		tokenStaticDataList.push(token);
-		console.log(token);
 
 		console.log(`Processed: ${totalCompleted} errors: ${errorSerials.length} (${errorSerials})`);
 		if (totalCompleted == totalToProcess) {
 			console.log('**COMPLETE**');
 		}
+	}).then(() => {
+		console.log('Passing for write', tokenStaticDataList.length, 'items');
+		const objList = tokenStaticDataList.flat().map((item) => item.toObject());
+		writeStaticData(objList).catch((error) => {
+			console.error('error writing', error, objList);
+		});
+	}).catch((error) => {
+		console.error(error);
 	});
-	// routeUrl = json.links.next;
-	routeUrl = null;
+	routeUrl = json.links.next;
 	if	(routeUrl) {
-		return getStatisDataViaMirrors(tokenId, collection, routeUrl, tokenStaticDataList);
-	}
-	else {
-		return tokenStaticDataList;
+		getStaticDataViaMirrors(tokenId, collection, routeUrl);
 	}
 }
 
@@ -153,4 +158,4 @@ const sleep = (milliseconds) => {
 	return new Promise(resolve => setTimeout(resolve, milliseconds));
 };
 
-module.exports = { getStatisDataViaMirrors };
+module.exports = { getStaticDataViaMirrors };
