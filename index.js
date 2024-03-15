@@ -3,7 +3,7 @@ const { getStaticDataViaMirrors } = require('./utils/metadataScrapeHelper');
 
 async function main() {
 	// await getStaticData('0.0.848553', [1]);
-	await getStaticDataViaMirrors(848553, 'LSH - Gen 2');
+	await getStaticDataViaMirrors('0.0.3566850', 'Req NFT A');
 }
 
 main().then(() => {

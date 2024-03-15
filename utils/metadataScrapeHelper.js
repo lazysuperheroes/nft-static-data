@@ -9,7 +9,7 @@ const errorSerials = [];
 
 async function getStaticDataViaMirrors(tokenId, collection, routeUrl = null) {
 
-	const baseUrl = 'https://mainnet-public.mirrornode.hedera.com';
+	const baseUrl = process.env.BASE_MIRROR_URL;
 	if (!routeUrl) routeUrl = `/api/v1/tokens/${tokenId}/nfts/?limit=100`;
 
 	const json = await fetchJson(baseUrl + routeUrl);

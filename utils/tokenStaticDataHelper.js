@@ -2,29 +2,42 @@ const { createDirectus, staticToken, rest, readItems, createItems } = require('@
 require('dotenv').config();
 
 
-const client = createDirectus(process.env.DIRECTUS_DB_URL).with(staticToken(process.env.DIRECTUS_TOKEN)).with(rest());
+const client = createDirectus(process.env.DIRECTUS_DB_URL).with(rest());
 
+async function getPost() {
+	const data = await client.request(readItems('post'));
+	console.log(data);
+
+}
 
 /**
  * Query directus for Static Data
- * @param {*} addess Hedera address as string 0.0.XXX
+ * @param {*} address Hedera address as string 0.0.XXX
  * @param {Number[]} serials list of serials
  */
-async function getStaticData(addess, serials) {
-	const data = await client.request(readItems('TokenStaticData', {
+async function getStaticData(address, serials) {
+	client.request(readItems('TokenStaticData', {
 		filter: {
 			address: {
-				_eq: addess,
+				_eq: address,
 			},
 			serial: {
 				_in: serials,
 			},
 		},
-	}));
-	console.log(data);
+	})).then((data) => {
+		console.log(data);
+		return data;
+	}).catch((error) => {
+		console.error('error reading', error);
+	});
 }
 
 async function writeStaticData(tokenStaticDataList) {
+	if (tokenStaticDataList.length == 0) {
+		return;
+	}
+	client.with(staticToken(process.env.DIRECTUS_TOKEN));
 	console.log('Writing', tokenStaticDataList.length, 'items');
 	const data = await client.request(createItems('TokenStaticData', tokenStaticDataList));
 	console.log(data.length, 'items created');
@@ -65,4 +78,4 @@ class TokenStaticData {
 	}
 }
 
-module.exports = { getStaticData, TokenStaticData, writeStaticData };
+module.exports = { getStaticData, TokenStaticData, writeStaticData, getPost };
