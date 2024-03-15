@@ -1,4 +1,4 @@
-const { createDirectus, staticToken, rest, readItems, createItems } = require('@directus/sdk');
+const { createDirectus, staticToken, rest, readItems, createItems, deleteItems } = require('@directus/sdk');
 require('dotenv').config();
 
 
@@ -16,7 +16,8 @@ async function getPost() {
  * @param {Number[]} serials list of serials
  */
 async function getStaticData(address, serials) {
-	client.request(readItems('TokenStaticData', {
+	console.log('Filtering for', address, serials);
+	return await client.request(readItems('TokenStaticData', {
 		filter: {
 			address: {
 				_eq: address,
@@ -25,21 +26,32 @@ async function getStaticData(address, serials) {
 				_in: serials,
 			},
 		},
-	})).then((data) => {
-		console.log(data);
-		return data;
-	}).catch((error) => {
-		console.error('error reading', error);
-	});
+	}));
+}
+
+/**
+ * Deletes in batches of 100
+ * @param {String} address
+ */
+async function deleteAddress(address) {
+	console.log('Deleting', address);
+	const writeClient = createDirectus(process.env.DIRECTUS_DB_URL).with(staticToken(process.env.DIRECTUS_TOKEN)).with(rest());
+	await writeClient.request(deleteItems('TokenStaticData', {
+		filter: {
+			address: {
+				_eq: address,
+			},
+		},
+	}));
 }
 
 async function writeStaticData(tokenStaticDataList) {
 	if (tokenStaticDataList.length == 0) {
 		return;
 	}
-	client.with(staticToken(process.env.DIRECTUS_TOKEN));
+	const writeClient = createDirectus(process.env.DIRECTUS_DB_URL).with(staticToken(process.env.DIRECTUS_TOKEN)).with(rest());
 	console.log('Writing', tokenStaticDataList.length, 'items');
-	const data = await client.request(createItems('TokenStaticData', tokenStaticDataList));
+	const data = await writeClient.request(createItems('TokenStaticData', tokenStaticDataList));
 	console.log(data.length, 'items created');
 }
 
@@ -78,4 +90,4 @@ class TokenStaticData {
 	}
 }
 
-module.exports = { getStaticData, TokenStaticData, writeStaticData, getPost };
+module.exports = { getStaticData, TokenStaticData, writeStaticData, getPost, deleteAddress };
