@@ -7,9 +7,9 @@ let totalCompleted = 0;
 let totalToProcess = 0;
 const errorSerials = [];
 
-async function getStaticDataViaMirrors(tokenId, collection, routeUrl = null) {
+async function getStaticDataViaMirrors(env, tokenId, collection, routeUrl = null) {
 
-	const baseUrl = process.env.BASE_MIRROR_URL;
+	const baseUrl = env;
 	if (!routeUrl) routeUrl = `/api/v1/tokens/${tokenId}/nfts/?limit=100`;
 
 	const json = await fetchJson(baseUrl + routeUrl);
@@ -40,7 +40,7 @@ async function getStaticDataViaMirrors(tokenId, collection, routeUrl = null) {
 	});
 	routeUrl = json.links.next;
 	if	(routeUrl) {
-		getStaticDataViaMirrors(tokenId, collection, routeUrl);
+		getStaticDataViaMirrors(env, tokenId, collection, routeUrl);
 	}
 }
 
