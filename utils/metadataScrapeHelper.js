@@ -1,5 +1,5 @@
 const fetch = require('cross-fetch');
-const { TokenStaticData, writeStaticData } = require('./tokenStaticDataHelper');
+const { TokenStaticData, writeStaticData, getStaticDataToken } = require('./tokenStaticDataHelper');
 
 const maxRetries = 20;
 const ipfsGateways = ['https://cloudflare-ipfs.com/ipfs/', 'https://ipfs.eth.aragon.network/ipfs/', 'https://ipfs.io/ipfs/', 'https://ipfs.eternum.io/ipfs/', 'https://cloudflare-ipfs.com/ipfs/'];
@@ -8,6 +8,11 @@ let totalToProcess = 0;
 const errorSerials = [];
 
 async function getStaticDataViaMirrors(env, tokenId, collection, routeUrl = null) {
+
+	// get the existing data
+	const allTokenSerials = await getStaticDataToken(tokenId);
+
+	console.log('Existing data:', allTokenSerials.length);
 
 	const baseUrl = env;
 	if (!routeUrl) routeUrl = `/api/v1/tokens/${tokenId}/nfts/?limit=100`;
@@ -21,9 +26,9 @@ async function getStaticDataViaMirrors(env, tokenId, collection, routeUrl = null
 	const nfts = json.nfts;
 	totalToProcess = totalToProcess + nfts.length;
 	const tokenStaticDataList = [];
-	Promise.all(nfts.map((nft) => processNFT(nft, tokenId, collection))).then(token => {
-		// should get back a list of TokenStaticData objects
-		tokenStaticDataList.push(token);
+	Promise.all(nfts.map((nft) => processNFT(nft, tokenId, collection, allTokenSerials))).then(token => {
+		// strip token of undefined
+		tokenStaticDataList.push(token.filter((item) => item != undefined));
 
 		console.log(`Processed: ${totalCompleted} errors: ${errorSerials.length} (${errorSerials})`);
 		if (totalCompleted == totalToProcess) {
@@ -32,7 +37,7 @@ async function getStaticDataViaMirrors(env, tokenId, collection, routeUrl = null
 	}).then(() => {
 		console.log('Passing for write', tokenStaticDataList.length, 'items');
 		const objList = tokenStaticDataList.flat().map((item) => item.toObject());
-		writeStaticData(objList).catch((error) => {
+		writeStaticData(objList, allTokenSerials).catch((error) => {
 			console.error('error writing', error, objList);
 		});
 	}).catch((error) => {
@@ -44,13 +49,17 @@ async function getStaticDataViaMirrors(env, tokenId, collection, routeUrl = null
 	}
 }
 
-async function processNFT(nft, tokenId, collection) {
+async function processNFT(nft, tokenId, collection, allTokenSerials) {
 
 	const serialNum = nft.serial_number;
 
 	const deleted = nft.deleted;
 	if (deleted) {
 		console.log(serialNum, 'is deleted - skipping');
+		return;
+	}
+	else if (allTokenSerials.includes(serialNum)) {
+		console.log(serialNum, 'already exists - skipping');
 		return;
 	}
 
