@@ -29,6 +29,16 @@ async function getStaticData(address, serials) {
 	}));
 }
 
+async function getEligibleNfts(environment) {
+	return await client.request(readItems('eligibleNfts', {
+		filter: {
+			Environment: {
+				_eq: environment,
+			},
+		},
+	}));
+}
+
 // method to get the static data for a given address
 // to allow filtering out of existing data
 async function getStaticDataToken(address) {
@@ -105,6 +115,20 @@ async function writeStaticData(tokenStaticDataList) {
 	console.log(data.length, 'items created');
 }
 
+async function writeEligibleNfts(eligibleNfts) {
+	if (eligibleNfts.length == 0) {
+		return;
+	}
+	else {
+		// write to directus
+		// create a new client with the static token
+		console.log('Writing', eligibleNfts.length, 'items');
+	}
+	const writeClient = createDirectus(process.env.DIRECTUS_DB_URL).with(staticToken(process.env.DIRECTUS_TOKEN)).with(rest());
+	const data = await writeClient.request(createItems('eligibleNfts', eligibleNfts));
+	console.log(data.length, 'items created');
+}
+
 // define a Class for the TokenStaticData items with the same fields as the table
 // uid, Address, Serial, Metadata, RawMetadata, Image, Attributes, NFTName, Collection
 class TokenStaticData {
@@ -140,4 +164,45 @@ class TokenStaticData {
 	}
 }
 
-module.exports = { getStaticData, TokenStaticData, writeStaticData, getPost, deleteAddress, getStaticDataToken };
+class EligibleNft {
+	constructor(tokenId, evmTokenId, NiceName, Environment) {
+		this.AllowedTypes = Object.freeze({
+			STAKING: 'staking',
+			STAKING_BOOST: 'staking_boost',
+			MISSION_REQ: 'mission_req',
+			GEM_BOOST: 'gem_boost',
+			NULL: null,
+		});
+		this.tokenId = tokenId;
+		this.evmTokenId = evmTokenId;
+		this.NiceName = NiceName;
+		this.type = [];
+		this.Environment = [Environment];
+	}
+
+	setType(type) {
+		if (this.AllowedTypes[type]) {
+			this.type.push(this.AllowedTypes[type]);
+		}
+		else {
+			throw new Error(`Invalid type: ${type}. Allowed types are: ${this.AllowedTypes}`);
+		}
+	}
+
+	// define a toString()
+	toString() {
+		return `EligibleNft: ${this.tokenId}, ${this.evmTokenId}, ${this.NiceName}, ${this.type}, ${this.Environment}`;
+	}
+
+	toObject() {
+		return {
+			tokenId: this.tokenId,
+			evmTokenId: this.evmTokenId,
+			NiceName: this.NiceName,
+			type: this.type,
+			Environment: this.Environment,
+		};
+	}
+}
+
+module.exports = { getStaticData, TokenStaticData, writeStaticData, getPost, deleteAddress, getStaticDataToken, getEligibleNfts, EligibleNft, writeEligibleNfts };
