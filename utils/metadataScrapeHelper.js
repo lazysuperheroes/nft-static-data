@@ -192,7 +192,10 @@ function extractCIDFromUrl(url) {
 async function fetchIPFSJson(ifpsUrl, depth = 0, seed = 0) {
 	if (depth >= maxRetries) {
 		// if CID is valid and not in the DB, try to pin as we fail.
-		const metadataCID = extractCIDFromUrl(ifpsUrl);
+		let metadataCID = extractCIDFromUrl(ifpsUrl);
+		if (metadataCID.includes('/')) {
+			metadataCID = metadataCID.split('/')[0];
+		}
 		console.log('Bailing on:', metadataCID, 'from', ifpsUrl);
 		if (!await checkCIDExists(metadataCID) && isValidCID(metadataCID)) {
 			const status = await pinIPFS(metadataCID, `${ifpsUrl}-failed-load`, false);
