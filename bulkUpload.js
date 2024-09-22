@@ -1,9 +1,14 @@
-const { getTokenDetails, getBaseURL } = require('./utils/hederaMirrorHelpers');
+const { getTokenDetails } = require('./utils/hederaMirrorHelpers');
 const { getStaticDataViaMirrors } = require('./utils/metadataScrapeHelper');
 const readlineSync = require('readline-sync');
 
 // regex pattern for an address number.number.number
 const addressPattern = /^\d\.\d\.\d+$/;
+
+process.on('unhandledRejection', (reason, promise) => {
+	console.log('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 
 async function main() {
 	// expect 2 args
@@ -56,7 +61,7 @@ async function main() {
 			}
 		}
 
-		await getStaticDataViaMirrors(getBaseURL(env), address, collection);
+		await getStaticDataViaMirrors(env, address, collection);
 	}
 }
 
