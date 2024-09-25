@@ -182,58 +182,62 @@ function extractCIDFromUrl(url) {
 	}
 
 	if (!url.toLowerCase().includes('ipfs')) {
-		return url;
+		return url.split('/')[0];
 	}
 	// remove the ipfs:// prefix and anything after the CID
 	const cleanIPFS = url.replace(/^ipfs:\/\/|https:\/\/ipfs\.infura\.io\/ipfs\/|https:\/\/cloudflare-ipfs\.com\/ipfs\//, '');
 	return cleanIPFS.split('/')[0];
 }
 
-async function fetchIPFSJson(ifpsUrl, depth = 0, seed = 0) {
+async function fetchIPFSJson(ipfsUrl, depth = 0, seed = 0) {
 	if (depth >= maxRetries) {
 		// if CID is valid and not in the DB, try to pin as we fail.
-		let metadataCID = extractCIDFromUrl(ifpsUrl);
+		let metadataCID = extractCIDFromUrl(ipfsUrl);
 		if (metadataCID.includes('/')) {
 			metadataCID = metadataCID.split('/')[0];
 		}
-		console.log('Bailing on:', metadataCID, 'from', ifpsUrl);
+		console.log('Bailing on:', metadataCID, 'from', ipfsUrl);
 		if (!await checkCIDExists(metadataCID) && isValidCID(metadataCID)) {
-			const status = await pinIPFS(metadataCID, `${ifpsUrl}-failed-load`, false);
+			const status = await pinIPFS(metadataCID, `${ipfsUrl}-failed-load`, false);
 			if (!status) {
-				console.log('**Error pinning:', `${ifpsUrl}-failed-load`);
+				console.log('**Error pinning:', `${ipfsUrl}-failed-load`);
 			}
 		}
 		return null;
 	}
 	depth = depth + 1;
 
-	const metadataCID = extractCIDFromUrl(ifpsUrl);
+	const metadataCID = extractCIDFromUrl(ipfsUrl);
 
 	let url;
 	if (isValidArweaveCID(metadataCID)) {
-		url = `${arweaveGateways[seed % arweaveGateways.length]}${metadataCID}`;
+		const arweaveSplit = ipfsUrl.replace(/^ar:\/\/|https:\/\/arweave\.net\//, '');
+		url = `${arweaveGateways[seed % arweaveGateways.length]}${arweaveSplit}`;
 	}
 	else if (isValidCID(metadataCID) && await checkCIDExists(metadataCID)) {
-		url = `https://lazysuperheroes.myfilebase.com/ipfs/${ifpsUrl}`;
+		url = `https://lazysuperheroes.myfilebase.com/ipfs/${ipfsUrl}`;
 		// function checks for existing CID and writes to DB if not found
 		await writeCIDData(metadataCID);
 	}
-	else if (ifpsUrl.includes('hcs://')) {
+	else if (ipfsUrl.includes('hcs://')) {
 		// split on the hcs://1/0.0.XXXX and take the last part to append to https://tier.bot/api/hashinals-cdn/ plus ?network=
-		const hcsSplit = ifpsUrl.split('/');
+		const hcsSplit = ipfsUrl.split('/');
 		const hcsTopicId = hcsSplit[hcsSplit.length - 1];
 		url = `https://tier.bot/api/hashinals-cdn/${hcsTopicId}?network=mainnet`;
+	}
+	else if (!ipfsUrl.toLowerCase().includes('ipfs')) {
+		url = ipfsUrl;
 	}
 	else {
 		// remove the ipfs:// prefix and anything after the CID
 
-		const ipfsHash = ifpsUrl.replace(/^ipfs:\/\/|https:\/\/ipfs\.infura\.io\/ipfs\/|https:\/\/cloudflare-ipfs\.com\/ipfs\//, '');
+		const ipfsHash = ipfsUrl.replace(/^ipfs:\/\/|https:\/\/ipfs\.infura\.io\/ipfs\/|https:\/\/cloudflare-ipfs\.com\/ipfs\//, '');
 		const [hash, ...path] = ipfsHash.split('/');
 		if (ipfsGateways[seed % ipfsGateways.length] == 'dweb') {
 			url = `https://${hash}.ipfs.dweb.link/${path.join('/')}`;
 		}
 		else {
-			url = `${ipfsGateways[seed % ipfsGateways.length]}${ifpsUrl}`;
+			url = `${ipfsGateways[seed % ipfsGateways.length]}${ipfsUrl}`;
 		}
 	}
 
@@ -246,7 +250,7 @@ async function fetchIPFSJson(ifpsUrl, depth = 0, seed = 0) {
 		const res = await fetchWithTimeout(url);
 		if (res.status != 200) {
 			await sleep(sleepTime);
-			return await fetchIPFSJson(ifpsUrl, depth, seed);
+			return await fetchIPFSJson(ipfsUrl, depth, seed);
 		}
 		return res.json();
 
@@ -258,7 +262,7 @@ async function fetchIPFSJson(ifpsUrl, depth = 0, seed = 0) {
 		else {
 			await sleep(sleepTime + 30 * depth);
 		}
-		return await fetchIPFSJson(ifpsUrl, depth, seed);
+		return await fetchIPFSJson(ipfsUrl, depth, seed);
 	}
 }
 
