@@ -90,7 +90,7 @@ async function processNFT(nft, tokenId, collection, allTokenSerials, env) {
 	const metadataJSON = await fetchIPFSJson(ipfsString, 0, serialNum);
 
 	if (metadataJSON == null) {
-		errorSerials.push(serialNum);
+		errorSerials.push(`${tokenId}${serialNum}`);
 		console.log('**Error processing:', serialNum);
 		return;
 	}
@@ -118,7 +118,7 @@ async function processNFT(nft, tokenId, collection, allTokenSerials, env) {
 		// let's pin it
 		const status = await pinIPFS(metadataCID, `${tokenId} - ${collection} - ${serialNum}-meta`, false);
 		if (!status) {
-			errorSerials.push(serialNum);
+			errorSerials.push(`${tokenId}${serialNum}`);
 			console.log('**Error pinning:', serialNum);
 		}
 	}
@@ -129,7 +129,7 @@ async function processNFT(nft, tokenId, collection, allTokenSerials, env) {
 		// let's pin it
 		const status = await pinIPFS(imageCID, `${tokenId} - ${collection}- ${serialNum}-img`, true);
 		if (!status) {
-			errorSerials.push(serialNum);
+			errorSerials.push(`${tokenId}${serialNum}`);
 			console.log('**Error pinning (image):', serialNum);
 		}
 	}
