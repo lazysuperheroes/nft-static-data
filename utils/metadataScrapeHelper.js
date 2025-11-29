@@ -21,12 +21,9 @@ const envMap = new Map();
 envMap['MAIN'] = 'mainnet';
 envMap['TEST'] = 'testnet';
 
-async function getStaticDataViaMirrors(env, tokenId, collection, allTokenSerials = null, routeUrl = null, dryRun = false, progressCallback = null) {
+async function getStaticDataViaMirrors(env, tokenId, collection, allTokenSerials = null, routeUrl = null, dryRun = false, progressCallback = null, isRecursiveCall = false) {
 
 	if (!allTokenSerials) allTokenSerials = await getStaticDataToken(tokenId);
-
-	console.log('Existing data:', allTokenSerials.length);
-	logger.info('Starting metadata scrape', { tokenId, collection, existingCount: allTokenSerials.length });
 
 	const baseUrl = getBaseURL(env);
 
@@ -35,6 +32,8 @@ async function getStaticDataViaMirrors(env, tokenId, collection, allTokenSerials
 		totalCompleted = 0;
 		totalToProcess = 0;
 		actualTotal = 0;
+		console.log('Existing data:', allTokenSerials.length);
+		logger.info('Starting metadata scrape', { tokenId, collection, existingCount: allTokenSerials.length });
 	}
 
 	const json = await fetchJson(baseUrl + routeUrl);
@@ -44,15 +43,19 @@ async function getStaticDataViaMirrors(env, tokenId, collection, allTokenSerials
 		return;
 	}
 	const nfts = json.nfts;
-	totalToProcess = totalToProcess + nfts.length;
 
-	if (actualTotal === 0 && json.links && json.links.next) {
+	const nftsToProcess = nfts.filter(nft => !nft.deleted && !allTokenSerials.includes(nft.serial_number));
+	totalToProcess = totalToProcess + nftsToProcess.length;
+
+	if (actualTotal === 0) {
 		const { getTokenDetails } = require('./hederaMirrorHelpers');
 		const tokenData = await getTokenDetails(env, tokenId);
-		actualTotal = parseInt(tokenData.total_supply) || totalToProcess;
-	}
-	else if (actualTotal === 0) {
-		actualTotal = totalToProcess;
+		const tokenTotalSupply = parseInt(tokenData.total_supply) || 0;
+		actualTotal = Math.max(tokenTotalSupply - allTokenSerials.length, totalToProcess);
+
+		if (progressCallback && actualTotal > 0) {
+			progressCallback(0, actualTotal, 0);
+		}
 	}
 
 	const tokenStaticDataList = [];
@@ -62,11 +65,13 @@ async function getStaticDataViaMirrors(env, tokenId, collection, allTokenSerials
 	await Promise.all(promises).then(token => {
 		tokenStaticDataList.push(token.filter((item) => item != undefined && !allTokenSerials.includes(item.serial)));
 
-		console.log(`Processed: ${totalCompleted} errors: ${errorSerials.length} ${errorSerials.length > 0 ? '(' + errorSerials.slice(-5).join(', ') + ')' : ''}`);
-		logger.info('Batch processed', { completed: totalCompleted, errors: errorSerials.length });
+		if (nftsToProcess.length > 0) {
+			console.log(`Processed: ${totalCompleted}/${actualTotal} errors: ${errorSerials.length} ${errorSerials.length > 0 ? '(' + errorSerials.slice(-5).join(', ') + ')' : ''}`);
+			logger.info('Batch processed', { completed: totalCompleted, total: actualTotal, errors: errorSerials.length });
 
-		if (progressCallback) {
-			progressCallback(totalCompleted, actualTotal, errorSerials.length);
+			if (progressCallback) {
+				progressCallback(totalCompleted, actualTotal, errorSerials.length);
+			}
 		}
 
 		if (totalCompleted == totalToProcess) {
@@ -89,19 +94,25 @@ async function getStaticDataViaMirrors(env, tokenId, collection, allTokenSerials
 	routeUrl = json.links.next;
 	if (routeUrl) {
 		await sleep(100);
-		await getStaticDataViaMirrors(env, tokenId, collection, allTokenSerials, routeUrl, dryRun, progressCallback);
+		await getStaticDataViaMirrors(env, tokenId, collection, allTokenSerials, routeUrl, dryRun, progressCallback, true);
+	}
+	else if (!isRecursiveCall && totalCompleted === 0 && actualTotal === 0) {
+		console.log('✓ All NFTs already exist in database - nothing to process');
+		logger.info('No new NFTs to process', { tokenId, existingCount: allTokenSerials.length });
 	}
 }
 
-async function processNFT(nft, tokenId, collection, allTokenSerials, env, dryRun = false) {
+async function processNFT(nft, tokenId, collection, allTokenSerials, env) {
 
 	const serialNum = nft.serial_number;
 
 	const deleted = nft.deleted;
 	if (deleted) {
+		totalCompleted++;
 		return;
 	}
 	else if (allTokenSerials.includes(serialNum)) {
+		totalCompleted++;
 		return;
 	}
 

@@ -96,16 +96,20 @@ async function main() {
 	});
 
 	let totalNFTs = 0;
+	let progressBarStarted = false;
 	const progressCallback = (completed, total, errors) => {
-		if (totalNFTs === 0 && total > 0) {
+		if (!progressBarStarted && total > 0) {
 			totalNFTs = total;
 			progressBar.start(total, completed, { errors });
+			progressBarStarted = true;
 		}
-		else if (total > totalNFTs) {
+		else if (progressBarStarted && total > totalNFTs) {
 			totalNFTs = total;
 			progressBar.setTotal(total);
 		}
-		progressBar.update(completed, { errors });
+		if (progressBarStarted) {
+			progressBar.update(completed, { errors });
+		}
 
 		progressManager.saveProgress(address, {
 			completed,
@@ -118,7 +122,7 @@ async function main() {
 
 	await getStaticDataViaMirrors(env, address, collection, savedProgress?.serials || null, null, dryRun, progressCallback);
 
-	if (progressBar) {
+	if (progressBarStarted) {
 		progressBar.stop();
 	}
 
