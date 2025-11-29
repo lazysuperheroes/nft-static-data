@@ -1,11 +1,22 @@
 {
+  "name": "nft-static-data",
+  "version": "1.0.0",
+  "description": "NFT static metadata uploader for Lazy dApp",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
   "dependencies": {
     "@directus/sdk": "^15.0.3",
     "@hashgraph/sdk": "^2.42.0",
     "axios": "^1.6.8",
+    "bottleneck": "^2.19.5",
+    "cli-progress": "^3.12.0",
     "cross-fetch": "^4.0.0",
     "dotenv": "^16.4.5",
     "eslint": "^8.57.0",
-    "readline-sync": "^1.4.10"
+    "p-limit": "^3.1.0",
+    "readline-sync": "^1.4.10",
+    "winston": "^3.11.0"
   }
 }

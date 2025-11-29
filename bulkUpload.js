@@ -1,45 +1,83 @@
 const { getTokenDetails } = require('./utils/hederaMirrorHelpers');
 const { getStaticDataViaMirrors } = require('./utils/metadataScrapeHelper');
+const { validateEnvironment } = require('./utils/envValidator');
+const { validateTokenAddresses } = require('./utils/validation');
+const logger = require('./utils/logger');
 const readlineSync = require('readline-sync');
+const cliProgress = require('cli-progress');
 
-// regex pattern for an address number.number.number
+require('dotenv').config();
+
 const addressPattern = /^\d\.\d\.\d+$/;
+
+let progressBar;
 
 process.on('unhandledRejection', (reason, promise) => {
 	console.log('Unhandled Rejection at:', promise, 'reason:', reason);
+	logger.error('Unhandled rejection', { reason, promise });
 });
 
-
 async function main() {
-	// expect 2 args
+	validateEnvironment();
+
 	const args = process.argv.slice(2);
-	if (args.length != 1) {
-		console.log('Please provide a list of token address separated by commas');
+
+	const dryRun = args.includes('--dry-run') || args.includes('-d');
+	const addressArgs = args.filter(arg => !arg.startsWith('--') && !arg.startsWith('-'));
+
+	if (addressArgs.length != 1) {
+		console.log('Usage: node bulkUpload.js <address1>,<address2>,<address3> [--dry-run]');
+		console.log('');
+		console.log('Options:');
+		console.log('  --dry-run, -d    Simulate the upload without making changes');
 		return;
 	}
 
-	// use readline to choose the environment (MAIN/TEST)
 	const values = ['MAIN', 'TEST'];
 	const environment = readlineSync.keyInSelect(values, 'Which environment?');
+
+	if (environment === -1) {
+		console.log('Cancelled by user');
+		return;
+	}
 
 	const env = values[environment];
 
 	console.log('Environment:', env);
 
+	if (dryRun) {
+		console.log('🔍 DRY RUN MODE - No changes will be made');
+		logger.info('Dry run mode enabled');
+	}
+
 	const interactiveMode = readlineSync.keyInYNStrict('Do you want to use interactive mode?');
 
+	const addressList = addressArgs[0].split(',');
 
-	const addressList = args[0].split(',');
+	const validation = validateTokenAddresses(addressList);
 
-	for (const address of addressList) {
-		// check if address is valid
-		if (!addressPattern.test(address)) {
-			console.log('Invalid address', address);
-			continue;
+	if (validation.invalid.length > 0) {
+		console.error('❌ Invalid addresses found:');
+		validation.invalid.forEach(({ address, error }) => {
+			console.error(`   ${address}: ${error}`);
+		});
+		const continueAnyway = readlineSync.keyInYNStrict('Continue with valid addresses only?');
+		if (!continueAnyway) {
+			return;
 		}
+	}
 
-		// get the collection name from the mirror node
+	console.log(`✓ Processing ${validation.valid.length} valid addresses`);
+	logger.info('Starting bulk upload', { count: validation.valid.length, dryRun });
+
+	for (let i = 0; i < validation.valid.length; i++) {
+		const address = validation.valid[i];
+		console.log(`\n${'='.repeat(80)}`);
+		console.log(`Processing ${i + 1}/${validation.valid.length}: ${address}`);
+		console.log('='.repeat(80));
+
 		const tokenData = await getTokenDetails(env, address);
+		logger.info('Token details retrieved', { address, symbol: tokenData.symbol });
 
 		console.log('Using Default Name:', tokenData.symbol, 'for', address);
 
@@ -56,17 +94,52 @@ async function main() {
 		if (interactiveMode) {
 			const proceed = readlineSync.keyInYNStrict('Do you want to pull metadata and upload it?');
 			if (!proceed) {
-				console.log('User Aborted');
-				return;
+				console.log('Skipped by user');
+				logger.info('Collection skipped by user', { address });
+				continue;
 			}
 		}
 
-		await getStaticDataViaMirrors(env, address, collection);
+		progressBar = new cliProgress.SingleBar({
+			format: `[${address}] |{bar}| {percentage}% | ETA: {eta}s | {value}/{total} | Errors: {errors}`,
+			barCompleteChar: '\u2588',
+			barIncompleteChar: '\u2591',
+			hideCursor: true,
+		});
+
+		let totalNFTs = 0;
+		const progressCallback = (completed, total, errors) => {
+			if (totalNFTs === 0 && total > 0) {
+				totalNFTs = total;
+				progressBar.start(total, completed, { errors });
+			}
+			else if (total > totalNFTs) {
+				totalNFTs = total;
+				progressBar.setTotal(total);
+			}
+			progressBar.update(completed, { errors });
+		};
+
+		await getStaticDataViaMirrors(env, address, collection, null, null, dryRun, progressCallback);
+
+		if (progressBar) {
+			progressBar.stop();
+		}
+
+		logger.info('Collection completed', { address, collection });
 	}
+
+	console.log(`\n${'='.repeat(80)}`);
+	console.log(`✓ Bulk upload complete: ${validation.valid.length} collections processed`);
+	console.log('='.repeat(80));
 }
 
 main().then(() => {
-	console.log('Done');
+	console.log('\n✓ Done');
 }).catch((error) => {
-	console.error(error);
+	console.error('❌ Error:', error.message);
+	logger.error('Main process error', { error: error.message, stack: error.stack });
+	if (progressBar) {
+		progressBar.stop();
+	}
 });

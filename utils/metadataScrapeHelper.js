@@ -1,80 +1,109 @@
 const fetch = require('cross-fetch');
+const pLimit = require('p-limit');
 const { TokenStaticData, writeStaticData, getStaticDataToken, isValidCID, checkCIDExists, writeCIDData, pinIPFS, isValidArweaveCID } = require('./tokenStaticDataHelper');
 const { getBaseURL } = require('./hederaMirrorHelpers');
+const GatewayManager = require('./gatewayManager');
+const config = require('../config');
+const logger = require('./logger');
 
-const maxRetries = 18;
-const ipfsGateways = ['https://cloudflare-ipfs.com/ipfs/', 'https://ipfs.eth.aragon.network/ipfs/', 'https://ipfs.io/ipfs/', 'https://ipfs.eternum.io/ipfs/', 'https://cloudflare-ipfs.com/ipfs/', 'dweb'];
-const arweaveGateways = ['https://arweave.net/', 'https://ar-io.dev/', 'https://permagate.io/', 'https://arweave.developerdao.com/'];
+const limit = pLimit(config.processing.concurrentRequests);
+
+const maxRetries = config.processing.maxRetries;
+const ipfsGatewayManager = new GatewayManager(config.ipfs.gateways, 'ipfs');
+const arweaveGatewayManager = new GatewayManager(config.arweave.gateways, 'arweave');
+
 let totalCompleted = 0;
 let totalToProcess = 0;
+let actualTotal = 0;
 const errorSerials = [];
 
 const envMap = new Map();
 envMap['MAIN'] = 'mainnet';
 envMap['TEST'] = 'testnet';
 
-async function getStaticDataViaMirrors(env, tokenId, collection, allTokenSerials = null, routeUrl = null) {
+async function getStaticDataViaMirrors(env, tokenId, collection, allTokenSerials = null, routeUrl = null, dryRun = false, progressCallback = null) {
 
-	// get the existing data
 	if (!allTokenSerials) allTokenSerials = await getStaticDataToken(tokenId);
 
 	console.log('Existing data:', allTokenSerials.length);
+	logger.info('Starting metadata scrape', { tokenId, collection, existingCount: allTokenSerials.length });
 
 	const baseUrl = getBaseURL(env);
 
-	if (!routeUrl) routeUrl = `/api/v1/tokens/${tokenId}/nfts/?limit=100`;
+	if (!routeUrl) {
+		routeUrl = `/api/v1/tokens/${tokenId}/nfts/?limit=100`;
+		totalCompleted = 0;
+		totalToProcess = 0;
+		actualTotal = 0;
+	}
 
 	const json = await fetchJson(baseUrl + routeUrl);
 	if (json == null) {
 		console.log('FATAL ERROR: no NFTs found', baseUrl + routeUrl);
-		// unlikely to get here but a sensible default
+		logger.error('No NFTs found', { url: baseUrl + routeUrl });
 		return;
 	}
 	const nfts = json.nfts;
 	totalToProcess = totalToProcess + nfts.length;
+
+	if (actualTotal === 0 && json.links && json.links.next) {
+		const { getTokenDetails } = require('./hederaMirrorHelpers');
+		const tokenData = await getTokenDetails(env, tokenId);
+		actualTotal = parseInt(tokenData.total_supply) || totalToProcess;
+	}
+	else if (actualTotal === 0) {
+		actualTotal = totalToProcess;
+	}
+
 	const tokenStaticDataList = [];
-	await Promise.all(nfts.map((nft) => processNFT(nft, tokenId, collection, allTokenSerials, envMap[env]))).then(token => {
-		// strip token of undefined
+
+	const promises = nfts.map((nft) => limit(() => processNFT(nft, tokenId, collection, allTokenSerials, envMap[env], dryRun)));
+
+	await Promise.all(promises).then(token => {
 		tokenStaticDataList.push(token.filter((item) => item != undefined && !allTokenSerials.includes(item.serial)));
 
-		console.log(`Processed: ${totalCompleted} errors: ${errorSerials.length} (${errorSerials})`);
+		console.log(`Processed: ${totalCompleted} errors: ${errorSerials.length} ${errorSerials.length > 0 ? '(' + errorSerials.slice(-5).join(', ') + ')' : ''}`);
+		logger.info('Batch processed', { completed: totalCompleted, errors: errorSerials.length });
+
+		if (progressCallback) {
+			progressCallback(totalCompleted, actualTotal, errorSerials.length);
+		}
+
 		if (totalCompleted == totalToProcess) {
 			console.log('**COMPLETE**');
+			logger.info('Processing complete', { total: totalCompleted, errors: errorSerials.length });
+			ipfsGatewayManager.printStats();
+			arweaveGatewayManager.printStats();
 		}
 	}).then(() => {
 		const objList = tokenStaticDataList.flat().map((item) => item.toObject());
 		console.log('Writing', objList.length, 'items');
-		writeStaticData(objList, allTokenSerials).catch((error) => {
+		writeStaticData(objList, allTokenSerials, dryRun).catch((error) => {
 			console.error('error writing', error, objList[0], 'to', objList[objList.length - 1]);
+			logger.error('Failed to write batch', { error: error.message, count: objList.length });
 		});
 	}).catch((error) => {
 		console.error(error);
+		logger.error('Error processing batch', { error: error.message });
 	});
 	routeUrl = json.links.next;
-	if	(routeUrl) {
+	if (routeUrl) {
 		await sleep(100);
-		await getStaticDataViaMirrors(env, tokenId, collection, allTokenSerials, routeUrl);
+		await getStaticDataViaMirrors(env, tokenId, collection, allTokenSerials, routeUrl, dryRun, progressCallback);
 	}
 }
 
-async function processNFT(nft, tokenId, collection, allTokenSerials, env) {
+async function processNFT(nft, tokenId, collection, allTokenSerials, env, dryRun = false) {
 
 	const serialNum = nft.serial_number;
 
 	const deleted = nft.deleted;
 	if (deleted) {
-		console.log(serialNum, 'is deleted - skipping');
 		return;
 	}
 	else if (allTokenSerials.includes(serialNum)) {
-		console.log(serialNum, 'already exists - skipping');
 		return;
 	}
-	else {
-		console.log(serialNum, 'is not in the DB - processing');
-	}
-
-	await sleep(21 * serialNum % 1000 + 100);
 
 	const metadataString = Buffer.from(nft.metadata, 'base64').toString('utf-8');
 
@@ -190,17 +219,19 @@ function extractCIDFromUrl(url) {
 }
 
 async function fetchIPFSJson(ipfsUrl, depth = 0, seed = 0) {
+	const startTime = Date.now();
+
 	if (depth >= maxRetries) {
-		// if CID is valid and not in the DB, try to pin as we fail.
 		let metadataCID = extractCIDFromUrl(ipfsUrl);
 		if (metadataCID.includes('/')) {
 			metadataCID = metadataCID.split('/')[0];
 		}
-		console.log('Bailing on:', metadataCID, 'from', ipfsUrl);
+		logger.warn('Max retries reached', { cid: metadataCID, url: ipfsUrl });
+
 		if (!await checkCIDExists(metadataCID) && isValidCID(metadataCID)) {
 			const status = await pinIPFS(metadataCID, `${ipfsUrl}-failed-load`, false);
 			if (!status) {
-				console.log('**Error pinning:', `${ipfsUrl}-failed-load`);
+				logger.error('Failed to pin after max retries', { cid: metadataCID });
 			}
 		}
 		return null;
@@ -210,50 +241,60 @@ async function fetchIPFSJson(ipfsUrl, depth = 0, seed = 0) {
 	const metadataCID = extractCIDFromUrl(ipfsUrl);
 
 	let url;
+	let gatewayType = null;
+
 	if (isValidArweaveCID(metadataCID)) {
 		const arweaveSplit = ipfsUrl.replace(/^ar:\/\/|https:\/\/arweave\.net\//, '');
-		url = `${arweaveGateways[seed % arweaveGateways.length]}${arweaveSplit}`;
+		const gateway = arweaveGatewayManager.getBestGateway();
+		url = `${gateway}${arweaveSplit}`;
+		gatewayType = 'arweave';
 	}
 	else if (isValidCID(metadataCID) && await checkCIDExists(metadataCID)) {
-		url = `https://lazysuperheroes.myfilebase.com/ipfs/${ipfsUrl}`;
-		// function checks for existing CID and writes to DB if not found
+		url = `${config.ipfs.filebaseGateway}${ipfsUrl}`;
 		await writeCIDData(metadataCID);
+		gatewayType = 'filebase';
 	}
 	else if (ipfsUrl.includes('hcs://')) {
-		// split on the hcs://1/0.0.XXXX and take the last part to append to https://tier.bot/api/hashinals-cdn/ plus ?network=
 		const hcsSplit = ipfsUrl.split('/');
 		const hcsTopicId = hcsSplit[hcsSplit.length - 1];
 		url = `https://tier.bot/api/hashinals-cdn/${hcsTopicId}?network=mainnet`;
+		gatewayType = 'hcs';
 	}
 	else if (!ipfsUrl.toLowerCase().includes('ipfs')) {
 		url = ipfsUrl;
+		gatewayType = 'direct';
 	}
 	else {
-		// remove the ipfs:// prefix and anything after the CID
-
 		const ipfsHash = ipfsUrl.replace(/^ipfs:\/\/|https:\/\/ipfs\.infura\.io\/ipfs\/|https:\/\/cloudflare-ipfs\.com\/ipfs\//, '');
 		const [hash, ...path] = ipfsHash.split('/');
-		if (ipfsGateways[seed % ipfsGateways.length] == 'dweb') {
+		const gateway = ipfsGatewayManager.getBestGateway();
+
+		if (gateway == 'dweb') {
 			url = `https://${hash}.ipfs.dweb.link/${path.join('/')}`;
 		}
 		else {
-			url = `${ipfsGateways[seed % ipfsGateways.length]}${ipfsUrl}`;
+			url = `${gateway}${ipfsUrl}`;
 		}
+		gatewayType = 'ipfs';
 	}
-
-	if (depth > 15) console.log('Attempt: ', depth, url);
-
 
 	seed += 1;
 	const sleepTime = ((12 * depth ^ 2 * seed) % 100) * (depth % 5);
+
 	try {
 		const res = await fetchWithTimeout(url);
 		if (res.status != 200) {
+			if (gatewayType === 'ipfs') ipfsGatewayManager.recordFailure(url.split('/ipfs/')[0] + '/ipfs/');
+			if (gatewayType === 'arweave') arweaveGatewayManager.recordFailure(url.split('/')[0] + '//' + url.split('/')[2] + '/');
 			await sleep(sleepTime);
 			return await fetchIPFSJson(ipfsUrl, depth, seed);
 		}
-		return res.json();
 
+		const responseTime = Date.now() - startTime;
+		if (gatewayType === 'ipfs') ipfsGatewayManager.recordSuccess(url.split('/ipfs/')[0] + '/ipfs/', responseTime);
+		if (gatewayType === 'arweave') arweaveGatewayManager.recordSuccess(url.split('/')[0] + '//' + url.split('/')[2] + '/', responseTime);
+
+		return res.json();
 	}
 	catch {
 		if (depth > 8) {
