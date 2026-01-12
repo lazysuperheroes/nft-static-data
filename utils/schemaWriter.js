@@ -18,7 +18,8 @@ class SchemaWriter {
 	constructor(schemaName = null) {
 		this.adapter = createAdapter(schemaName);
 		this.client = createDirectus(process.env.DIRECTUS_DB_URL).with(rest());
-		this.writeClient = null; // Lazy initialization
+		// Lazy initialization
+		this.writeClient = null;
 	}
 
 	/**

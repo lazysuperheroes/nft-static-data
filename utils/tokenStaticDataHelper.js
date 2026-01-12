@@ -43,7 +43,6 @@ async function loadCIDCache() {
  */
 async function preloadCIDCacheFromDB(batchSize = 1000) {
 	const startTime = Date.now();
-	const initialSize = cidMap.size;
 	let page = 0;
 	let totalLoaded = 0;
 
@@ -53,10 +52,11 @@ async function preloadCIDCacheFromDB(batchSize = 1000) {
 	try {
 		let hasMore = true;
 		while (hasMore) {
+			// Directus uses 1-based pages
 			const data = await client.request(readItems('cidDB', {
 				fields: ['cid'],
 				limit: batchSize,
-				page: page + 1, // Directus uses 1-based pages
+				page: page + 1,
 			}));
 
 			if (data.length === 0) {
@@ -514,7 +514,7 @@ async function confirmPin(_cid, forcePin = false) {
 
 	if (response && response?.length > 0 && response[0]?.status == 'pinned') {
 		const writeClient = createDirectus(process.env.DIRECTUS_DB_URL).with(staticToken(process.env.DIRECTUS_TOKEN)).with(rest());
-		const data = await writeClient.request(updateItem('cidDB', _cid, { pin_confirmed: true }));
+		await writeClient.request(updateItem('cidDB', _cid, { pin_confirmed: true }));
 		logger.info('Pin confirmed', { cid: _cid, requestid: response[0]?.requestid });
 		pinned = true;
 	}

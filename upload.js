@@ -10,7 +10,6 @@ const ProgressStateManager = require('./utils/progressState');
 
 require('dotenv').config();
 
-const addressPattern = /^\d\.\d\.\d+$/;
 const progressManager = new ProgressStateManager();
 
 let progressBar;

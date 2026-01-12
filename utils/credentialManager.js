@@ -23,7 +23,8 @@ function getKeytar() {
 			keytar = require('keytar');
 		}
 		catch {
-			keytar = false; // Mark as unavailable
+			// Mark as unavailable
+			keytar = false;
 		}
 	}
 	return keytar || null;
@@ -65,7 +66,8 @@ function maskCredential(value, visibleStart = 2, visibleEnd = 2) {
 		return '(not set)';
 	}
 
-	const minLength = visibleStart + visibleEnd + 3; // At least 3 asterisks
+	// At least 3 asterisks
+	const minLength = visibleStart + visibleEnd + 3;
 
 	if (value.length < minLength) {
 		// For very short values, just show asterisks
@@ -159,7 +161,6 @@ function displayCredentialStatus(showAll = false) {
 	for (const [name, config] of Object.entries(REQUIRED_CREDENTIALS)) {
 		const value = process.env[name];
 		const masked = maskCredential(value);
-		const status = value ? 'SET' : 'MISSING';
 		const statusSymbol = value ? '+' : '-';
 
 		if (showAll || config.sensitive) {

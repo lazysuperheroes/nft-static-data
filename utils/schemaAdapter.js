@@ -10,7 +10,6 @@
  */
 
 const config = require('../config');
-const logger = require('./logger');
 
 /**
  * Schema definitions with field mappings
@@ -23,10 +22,13 @@ const SCHEMAS = {
 			uid: { type: 'string', required: true },
 			address: { type: 'string', required: true },
 			serial: { type: 'integer', required: true },
-			metadata: { type: 'string', required: false }, // IPFS URL
-			rawMetadata: { type: 'text', required: false }, // JSON string
+			// IPFS URL
+			metadata: { type: 'string', required: false },
+			// JSON string
+			rawMetadata: { type: 'text', required: false },
 			image: { type: 'string', required: false },
-			attributes: { type: 'string', required: false }, // JSON string
+			// JSON string
+			attributes: { type: 'string', required: false },
 			nftName: { type: 'string', required: false },
 			collection: { type: 'string', required: true },
 			environment: { type: 'string', required: true },
@@ -46,7 +48,8 @@ const SCHEMAS = {
 			serial_number: { type: 'integer', required: true },
 			name: { type: 'string', required: false },
 			collection: { type: 'string', required: true },
-			cid: { type: 'string', required: false }, // Metadata CID
+			// Metadata CID
+			cid: { type: 'string', required: false },
 			image: { type: 'string', required: false },
 			downloaded_to_file: { type: 'boolean', required: false, default: false },
 			fully_enriched: { type: 'boolean', required: false, default: false },
@@ -77,13 +80,16 @@ const FIELD_MAPPINGS = {
 	SecureTradeMetadata: {
 		tokenId: 'token_id',
 		serial: 'serial_number',
-		metadataUrl: null, // Not stored directly
+		// Not stored directly
+		metadataUrl: null,
 		rawMetadata: 'rawMetadataJson',
 		image: 'image',
-		attributes: null, // Not stored directly
+		// Not stored directly
+		attributes: null,
 		name: 'name',
 		collection: 'collection',
-		environment: null, // Not stored directly
+		// Not stored directly
+		environment: null,
 		cid: 'cid',
 		downloadedToFile: 'downloaded_to_file',
 		fullyEnriched: 'fully_enriched',

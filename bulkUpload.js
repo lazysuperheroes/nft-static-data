@@ -9,8 +9,6 @@ const cliProgress = require('cli-progress');
 
 require('dotenv').config();
 
-const addressPattern = /^\d\.\d\.\d+$/;
-
 let progressBar;
 
 process.on('unhandledRejection', (reason, promise) => {
