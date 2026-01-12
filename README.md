@@ -1,6 +1,19 @@
 # NFT Static Data Uploader
 
-A comprehensive tool suite for scraping, storing, and managing NFT metadata from Hedera networks. This project works in conjunction with the Lazy dApp to enable faster NFT operations by pre-caching static metadata.
+[![npm version](https://img.shields.io/npm/v/@lazysuperheroes/nft-static-data.svg)](https://www.npmjs.com/package/@lazysuperheroes/nft-static-data)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js Version](https://img.shields.io/node/v/@lazysuperheroes/nft-static-data.svg)](https://nodejs.org)
+
+A comprehensive tool suite for scraping, storing, and managing NFT metadata from Hedera networks. This project works in conjunction with the Lazy dApp and SecureTrade Marketplace to enable faster NFT operations by pre-caching static metadata.
+
+## Features
+
+- **Multi-schema support** - Works with TokenStaticData (Lazy dApp) and SecureTradeMetadata (Marketplace)
+- **Secure credentials** - OS keychain integration for secure credential storage
+- **IPFS pinning** - Automatic pinning to Filebase with retry logic
+- **Gateway rotation** - Multiple IPFS/Arweave gateways with smart failover
+- **Progress tracking** - Resume interrupted uploads, real-time progress bars
+- **NPM package** - Use as CLI tools or import as a library
 
 ## Table of Contents
 
@@ -880,9 +893,9 @@ Key extension points:
 This package can be used programmatically in your own code:
 
 ```javascript
-const { getStaticDataViaMirrors, ProcessingContext } = require('nft-static-data');
-const { createAdapter, NormalizedMetadata } = require('nft-static-data/utils/schemaAdapter');
-const { preloadCIDCacheFromDB } = require('nft-static-data/utils/tokenStaticDataHelper');
+const { getStaticDataViaMirrors, ProcessingContext } = require('@lazysuperheroes/nft-static-data');
+const { createAdapter, NormalizedMetadata } = require('@lazysuperheroes/nft-static-data/utils/schemaAdapter');
+const { preloadCIDCacheFromDB } = require('@lazysuperheroes/nft-static-data/utils/tokenStaticDataHelper');
 
 // Preload cache
 await preloadCIDCacheFromDB();
@@ -1037,10 +1050,10 @@ This means:
 
 To publish as an NPM package:
 
-1. **Update package.json**:
+1. **Update package.json** (already configured):
    ```json
    {
-     "name": "@your-org/nft-metadata-scraper",
+     "name": "@lazysuperheroes/nft-static-data",
      "version": "1.0.0",
      "main": "index.js",
      "exports": {
@@ -1066,7 +1079,7 @@ To publish as an NPM package:
 
 3. **Publish**:
    ```bash
-   npm login --scope=@your-org
+   npm login --scope=@lazysuperheroes
    npm publish --access public
    ```
 

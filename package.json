@@ -1,5 +1,5 @@
 {
-  "name": "nft-static-data",
+  "name": "@lazysuperheroes/nft-static-data",
   "version": "1.0.0",
   "description": "NFT static metadata uploader for Hedera - supports Lazy dApp and SecureTrade Marketplace",
   "main": "index.js",
@@ -35,13 +35,18 @@
     "scraper",
     "pinning",
     "filebase",
-    "directus"
+    "directus",
+    "lazy-superheroes"
   ],
-  "author": "",
+  "author": "Lazy Superheroes",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "git+https://github.com/lazysuperheroes/nft-static-data.git"
+  },
+  "homepage": "https://github.com/lazysuperheroes/nft-static-data#readme",
+  "bugs": {
+    "url": "https://github.com/lazysuperheroes/nft-static-data/issues"
   },
   "engines": {
     "node": ">=16.0.0"
@@ -72,6 +77,8 @@
     "validatePins.js",
     "manageCredentials.js",
     "utils/",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ]
 }

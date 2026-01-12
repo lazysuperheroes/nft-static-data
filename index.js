@@ -4,10 +4,10 @@
  * Clean API for using this package as a library.
  *
  * Usage:
- *   const { getStaticDataViaMirrors, ProcessingContext } = require('@your-org/nft-static-data');
+ *   const { getStaticDataViaMirrors, ProcessingContext } = require('@lazysuperheroes/nft-static-data');
  *
  * Or import specific utilities:
- *   const { createAdapter } = require('@your-org/nft-static-data/utils/schemaAdapter');
+ *   const { createAdapter } = require('@lazysuperheroes/nft-static-data/utils/schemaAdapter');
  */
 
 // Core scraping functionality
