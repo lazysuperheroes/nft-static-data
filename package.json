@@ -14,12 +14,12 @@
     "./config": "./config.js"
   },
   "bin": {
-    "nft-upload": "./upload.js",
-    "nft-bulk-upload": "./bulkUpload.js",
-    "nft-validate-pins": "./validatePins.js",
-    "nft-credentials": "./manageCredentials.js",
-    "nft-analyze-errors": "./analyzeErrors.js",
-    "nft-filebase": "./checkFileBaseStatus.js"
+    "nft-upload": "upload.js",
+    "nft-bulk-upload": "bulkUpload.js",
+    "nft-validate-pins": "validatePins.js",
+    "nft-credentials": "manageCredentials.js",
+    "nft-analyze-errors": "analyzeErrors.js",
+    "nft-filebase": "checkFileBaseStatus.js"
   },
   "scripts": {
     "upload": "node upload.js",
