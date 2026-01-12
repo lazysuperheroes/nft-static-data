@@ -25,13 +25,92 @@ async function loadCIDCache() {
 		const data = await fs.readFile(config.cache.cidCacheFile, 'utf8');
 		const entries = JSON.parse(data);
 		entries.forEach(([key, value]) => cidMap.set(key, value));
-		console.log(`✓ Loaded ${cidMap.size} CIDs from cache`);
-		logger.info('CID cache loaded', { count: cidMap.size });
+		console.log(`Loaded ${cidMap.size} CIDs from file cache`);
+		logger.info('CID cache loaded from file', { count: cidMap.size });
 	}
 	catch (error) {
 		console.log('No cache file found, starting fresh');
 		logger.info('Starting with empty CID cache');
 	}
+}
+
+/**
+ * Preload CID cache from database
+ * Call this before processing to reduce database lookups
+ *
+ * @param {number} batchSize - Number of CIDs to fetch per query (default: 1000)
+ * @returns {Promise<number>} Number of CIDs loaded
+ */
+async function preloadCIDCacheFromDB(batchSize = 1000) {
+	const startTime = Date.now();
+	const initialSize = cidMap.size;
+	let page = 0;
+	let totalLoaded = 0;
+
+	console.log('Preloading CID cache from database...');
+	logger.info('Starting CID cache preload from database');
+
+	try {
+		let hasMore = true;
+		while (hasMore) {
+			const data = await client.request(readItems('cidDB', {
+				fields: ['cid'],
+				limit: batchSize,
+				page: page + 1, // Directus uses 1-based pages
+			}));
+
+			if (data.length === 0) {
+				hasMore = false;
+			}
+			else {
+				for (const item of data) {
+					if (item.cid && !cidMap.has(item.cid)) {
+						cidMap.set(item.cid, true);
+						totalLoaded++;
+					}
+				}
+				page++;
+
+				// Progress logging every 5000 CIDs
+				if (totalLoaded > 0 && totalLoaded % 5000 === 0) {
+					console.log(`  ...loaded ${totalLoaded} CIDs so far`);
+				}
+			}
+		}
+
+		const duration = Date.now() - startTime;
+		console.log(`Preloaded ${totalLoaded} CIDs from database (${cidMap.size} total in cache) in ${duration}ms`);
+		logger.info('CID cache preload complete', {
+			loaded: totalLoaded,
+			total: cidMap.size,
+			durationMs: duration,
+		});
+
+		// Save the updated cache to file
+		await saveCIDCache();
+
+		return totalLoaded;
+	}
+	catch (error) {
+		logger.error('Failed to preload CID cache from database', { error: error.message });
+		console.error('Error preloading CID cache:', error.message);
+		return 0;
+	}
+}
+
+/**
+ * Get current CID cache size
+ */
+function getCIDCacheSize() {
+	return cidMap.size;
+}
+
+/**
+ * Clear the CID cache (useful for testing)
+ */
+function clearCIDCache() {
+	cidMap.clear();
+	logger.info('CID cache cleared');
 }
 
 /**
@@ -487,4 +566,4 @@ process.on('SIGINT', () => {
 	saveCIDCache().then(() => process.exit(0));
 });
 
-module.exports = { getStaticData, TokenStaticData, writeStaticData, getPost, deleteAddress, getStaticDataToken, getEligibleNfts, EligibleNft, writeEligibleNfts, isValidCID, checkCIDExists, writeCIDData, pinIPFS, getUnconfirmedPins, confirmPin, checkCIDsMissing, checkPinStatus, isValidArweaveCID, loadCIDCache, saveCIDCache };
+module.exports = { getStaticData, TokenStaticData, writeStaticData, getPost, deleteAddress, getStaticDataToken, getEligibleNfts, EligibleNft, writeEligibleNfts, isValidCID, checkCIDExists, writeCIDData, pinIPFS, getUnconfirmedPins, confirmPin, checkCIDsMissing, checkPinStatus, isValidArweaveCID, loadCIDCache, saveCIDCache, preloadCIDCacheFromDB, getCIDCacheSize, clearCIDCache };

@@ -5,23 +5,24 @@ const config = require('./config');
 const cliProgress = require('cli-progress');
 require('dotenv').config();
 
-validateEnvironment();
+const BATCH_SIZE = config.processing.validatePinsBatchSize || 20;
 
-let force = false;
-const BATCH_SIZE = config.ipfs.pinBatchSize;
+async function main() {
+	await validateEnvironment();
 
-if (process.argv.includes('-force') || process.argv.includes('--force')) {
-	force = true;
-	console.log('🔄 Force pin mode enabled');
-	logger.info('Force pin mode enabled');
-}
+	let force = false;
+	if (process.argv.includes('-force') || process.argv.includes('--force')) {
+		force = true;
+		console.log('Force pin mode enabled');
+		logger.info('Force pin mode enabled');
+	}
 
-getUnconfirmedPins().then(async (data) => {
-	console.log(`📌 Total unconfirmed pins: ${data.length}`);
+	const data = await getUnconfirmedPins();
+	console.log(`Total unconfirmed pins: ${data.length}`);
 	logger.info('Starting pin validation', { count: data.length, force });
 
 	if (data.length === 0) {
-		console.log('✓ No unconfirmed pins found');
+		console.log('No unconfirmed pins found');
 		return;
 	}
 
@@ -57,15 +58,18 @@ getUnconfirmedPins().then(async (data) => {
 	progressBar.stop();
 
 	console.log('\n' + '='.repeat(60));
-	console.log('📊 Pin Validation Summary');
+	console.log('Pin Validation Summary');
 	console.log('='.repeat(60));
-	console.log(`✓ Confirmed: ${confirmed}`);
-	console.log(`✗ Failed: ${failed}`);
-	console.log(`📍 Total Processed: ${completed}`);
+	console.log(`Confirmed: ${confirmed}`);
+	console.log(`Failed: ${failed}`);
+	console.log(`Total Processed: ${completed}`);
 	console.log('='.repeat(60));
 
 	logger.info('Pin validation complete', { total: completed, confirmed, failed });
-}).catch((error) => {
-	console.error('❌ Error:', error.message);
+}
+
+main().catch((error) => {
+	console.error('Error:', error.message);
 	logger.error('Pin validation error', { error: error.message, stack: error.stack });
+	process.exit(1);
 });

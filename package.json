@@ -1,10 +1,50 @@
 {
   "name": "nft-static-data",
   "version": "1.0.0",
-  "description": "NFT static metadata uploader for Lazy dApp",
+  "description": "NFT static metadata uploader for Hedera - supports Lazy dApp and SecureTrade Marketplace",
   "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./utils/schemaAdapter": "./utils/schemaAdapter.js",
+    "./utils/schemaWriter": "./utils/schemaWriter.js",
+    "./utils/ProcessingContext": "./utils/ProcessingContext.js",
+    "./utils/credentialManager": "./utils/credentialManager.js",
+    "./utils/tokenStaticDataHelper": "./utils/tokenStaticDataHelper.js",
+    "./utils/hederaMirrorHelpers": "./utils/hederaMirrorHelpers.js",
+    "./config": "./config.js"
+  },
+  "bin": {
+    "nft-upload": "./upload.js",
+    "nft-bulk-upload": "./bulkUpload.js",
+    "nft-validate-pins": "./validatePins.js",
+    "nft-credentials": "./manageCredentials.js"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "upload": "node upload.js",
+    "bulk-upload": "node bulkUpload.js",
+    "validate-pins": "node validatePins.js",
+    "credentials": "node manageCredentials.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint ."
+  },
+  "keywords": [
+    "nft",
+    "hedera",
+    "ipfs",
+    "metadata",
+    "scraper",
+    "pinning",
+    "filebase",
+    "directus"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "engines": {
+    "node": ">=16.0.0"
   },
   "dependencies": {
     "@directus/sdk": "^15.0.3",
@@ -14,9 +54,24 @@
     "cli-progress": "^3.12.0",
     "cross-fetch": "^4.0.0",
     "dotenv": "^16.4.5",
-    "eslint": "^8.57.0",
     "p-limit": "^3.1.0",
     "readline-sync": "^1.4.10",
     "winston": "^3.11.0"
-  }
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0"
+  },
+  "optionalDependencies": {
+    "keytar": "^7.9.0"
+  },
+  "files": [
+    "index.js",
+    "config.js",
+    "upload.js",
+    "bulkUpload.js",
+    "validatePins.js",
+    "manageCredentials.js",
+    "utils/",
+    "README.md"
+  ]
 }

@@ -40,6 +40,8 @@ module.exports = {
 	database: {
 		writeBatchSize: 50,
 		queryLimit: 100,
+		// Schema selection: 'TokenStaticData' (Lazy dApp) or 'SecureTradeMetadata' (Marketplace)
+		schema: process.env.DB_SCHEMA || 'TokenStaticData',
 	},
 
 	// Cache settings

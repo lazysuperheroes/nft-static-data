@@ -1,7 +1,8 @@
 const { getTokenDetails } = require('./utils/hederaMirrorHelpers');
 const { getStaticDataViaMirrors } = require('./utils/metadataScrapeHelper');
-const { validateEnvironment } = require('./utils/envValidator');
+const { validateEnvironment, displayMaskedCredentials } = require('./utils/envValidator');
 const { validateTokenAddress } = require('./utils/validation');
+const { preloadCIDCacheFromDB } = require('./utils/tokenStaticDataHelper');
 const logger = require('./utils/logger');
 const readlineSync = require('readline-sync');
 const cliProgress = require('cli-progress');
@@ -20,21 +21,27 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 async function main() {
-	validateEnvironment();
+	await validateEnvironment();
 
 	const args = process.argv.slice(2);
 
 	const dryRun = args.includes('--dry-run') || args.includes('-d');
 	const resume = args.includes('--resume') || args.includes('-r');
+	const verbose = args.includes('--verbose') || args.includes('-v');
+
+	if (verbose) {
+		displayMaskedCredentials();
+	}
 
 	const addressArgs = args.filter(arg => !arg.startsWith('--') && !arg.startsWith('-'));
 
 	if (addressArgs.length != 1) {
-		console.log('Usage: node upload.js <tokenAddress> [--dry-run] [--resume]');
+		console.log('Usage: node upload.js <tokenAddress> [options]');
 		console.log('');
 		console.log('Options:');
 		console.log('  --dry-run, -d    Simulate the upload without making changes');
 		console.log('  --resume, -r     Resume from last saved progress');
+		console.log('  --verbose, -v    Show masked credential values');
 		return;
 	}
 
@@ -78,9 +85,12 @@ async function main() {
 	console.log('Getting static data for all serials of', address, '(', collection, ') in', env);
 
 	if (dryRun) {
-		console.log('🔍 DRY RUN MODE - No changes will be made');
+		console.log('DRY RUN MODE - No changes will be made');
 		logger.info('Dry run mode enabled');
 	}
+
+	// Preload CID cache from database to reduce lookups
+	await preloadCIDCacheFromDB();
 
 	const proceed = readlineSync.keyInYNStrict('Do you want to pull metadata and upload it?');
 	if (!proceed) {

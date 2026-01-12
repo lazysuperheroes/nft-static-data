@@ -2,6 +2,7 @@ const { getTokenDetails } = require('./utils/hederaMirrorHelpers');
 const { getStaticDataViaMirrors } = require('./utils/metadataScrapeHelper');
 const { validateEnvironment } = require('./utils/envValidator');
 const { validateTokenAddresses } = require('./utils/validation');
+const { preloadCIDCacheFromDB } = require('./utils/tokenStaticDataHelper');
 const logger = require('./utils/logger');
 const readlineSync = require('readline-sync');
 const cliProgress = require('cli-progress');
@@ -18,7 +19,7 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 async function main() {
-	validateEnvironment();
+	await validateEnvironment();
 
 	const args = process.argv.slice(2);
 
@@ -67,8 +68,11 @@ async function main() {
 		}
 	}
 
-	console.log(`✓ Processing ${validation.valid.length} valid addresses`);
+	console.log(`Processing ${validation.valid.length} valid addresses`);
 	logger.info('Starting bulk upload', { count: validation.valid.length, dryRun });
+
+	// Preload CID cache from database to reduce lookups
+	await preloadCIDCacheFromDB();
 
 	for (let i = 0; i < validation.valid.length; i++) {
 		const address = validation.valid[i];

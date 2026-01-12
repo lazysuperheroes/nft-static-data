@@ -75,11 +75,41 @@ DIRECTUS_TOKEN=your-static-token-here
 # Filebase IPFS Pinning
 FILEBASE_PINNING_SERVICE=https://api.filebase.io/v1/ipfs/pins
 FILEBASE_PINNING_API_KEY=your-filebase-api-key-here
+
+# Optional: Schema Selection (default: TokenStaticData)
+# Use 'SecureTradeMetadata' for marketplace integration
+DB_SCHEMA=TokenStaticData
+```
+
+### Credential Security
+
+Credentials are validated at startup. Use the `--verbose` flag to display masked credential values (shows first 2 and last 2 characters only):
+
+```bash
+node upload.js 0.0.1234567 --verbose
+```
+
+Example output:
+```
+=== Loaded Credentials ===
+
+[+] Directus Database URL
+    DIRECTUS_DB_URL: ht********om
+[+] Directus API Token
+    DIRECTUS_TOKEN: ab********yz
+[+] Filebase Pinning Service URL
+    FILEBASE_PINNING_SERVICE: ht********ns
+[+] Filebase API Key
+    FILEBASE_PINNING_API_KEY: sk********23
+
+==========================
 ```
 
 ### Required Directus Collections
 
 Your Directus instance needs these collections:
+
+#### Schema: TokenStaticData (Default - Lazy dApp)
 
 1. **TokenStaticData**
    - `uid` (string) - Unique identifier (tokenId!serial)
@@ -92,6 +122,24 @@ Your Directus instance needs these collections:
    - `nftName` (string) - NFT name
    - `collection` (string) - Collection name
    - `environment` (string) - Network (mainnet/testnet)
+
+#### Schema: SecureTradeMetadata (Marketplace)
+
+Set `DB_SCHEMA=SecureTradeMetadata` to use this schema:
+
+1. **SecureTradeMetadata**
+   - `uid` (string) - Unique identifier (tokenId-serial)
+   - `token_id` (string) - Token address (0.0.XXXX)
+   - `serial_number` (integer) - NFT serial number
+   - `name` (string) - NFT name
+   - `collection` (string) - Collection name
+   - `cid` (string) - Metadata CID
+   - `image` (string) - Image URL/CID
+   - `downloaded_to_file` (boolean) - Whether image is cached locally
+   - `fully_enriched` (boolean) - Whether all metadata is complete
+   - `rawMetadataJson` (text) - Full JSON metadata
+
+#### Common Collections (Both Schemas)
 
 2. **eligibleNfts**
    - `tokenId` (string) - Token address
@@ -114,25 +162,44 @@ Your Directus instance needs these collections:
 
 **Usage:**
 ```bash
-node upload.js <tokenAddress>
+node upload.js <tokenAddress> [options]
 ```
+
+**Options:**
+- `--dry-run, -d` - Simulate the upload without making changes
+- `--resume, -r` - Resume from last saved progress
+- `--verbose, -v` - Show masked credential values
 
 **Example:**
 ```bash
+# Basic upload
 node upload.js 0.0.1234567
+
+# Dry run to preview changes
+node upload.js 0.0.1234567 --dry-run
+
+# Resume interrupted upload
+node upload.js 0.0.1234567 --resume
+
+# Show credentials and upload
+node upload.js 0.0.1234567 --verbose
 ```
 
 **Interactive Prompts:**
 1. Choose environment (MAIN/TEST)
-2. Confirm or customize collection name (defaults to token symbol)
-3. Confirm to proceed with upload
+2. Optionally resume from previous progress (if --resume)
+3. Confirm or customize collection name (defaults to token symbol)
+4. Confirm to proceed with upload
 
 **What It Does:**
+- Validates environment credentials
+- Preloads CID cache from database (reduces lookups)
 - Fetches token details from Hedera mirror node
 - Retrieves metadata for all NFT serials
 - Parses and normalizes metadata
 - Pins IPFS content to Filebase
-- Stores in Directus database
+- Stores in Directus database (using configured schema)
+- Saves progress for resume capability
 
 **When to Use:**
 - Adding a new collection to the database
@@ -147,12 +214,19 @@ node upload.js 0.0.1234567
 
 **Usage:**
 ```bash
-node bulkUpload.js <address1>,<address2>,<address3>
+node bulkUpload.js <address1>,<address2>,<address3> [options]
 ```
+
+**Options:**
+- `--dry-run, -d` - Simulate the upload without making changes
 
 **Example:**
 ```bash
+# Process multiple collections
 node bulkUpload.js 0.0.1234567,0.0.7654321,0.0.9999999
+
+# Dry run to preview
+node bulkUpload.js 0.0.1234567,0.0.7654321 --dry-run
 ```
 
 **Interactive Prompts:**
@@ -165,6 +239,8 @@ node bulkUpload.js 0.0.1234567,0.0.7654321,0.0.9999999
 - **Non-Interactive:** Uses default names and processes all automatically
 
 **What It Does:**
+- Validates all addresses before processing
+- Preloads CID cache from database (reduces lookups)
 - Processes multiple collections sequentially
 - Uses token symbol as default collection name
 - Same metadata fetching and storage as single upload
@@ -333,6 +409,114 @@ node getPost.js
 - Verifying database connectivity
 - Troubleshooting connection issues
 
+---
+
+### manageCredentials.js - Credential Management
+
+**Purpose:** Securely manage credentials using OS keychain.
+
+**Usage:**
+```bash
+node manageCredentials.js <command> [args]
+```
+
+**Commands:**
+- `status` - Show credential status and keychain availability
+- `migrate` - Migrate .env credentials to OS keychain
+- `set <name>` - Set a credential in keychain
+- `delete <name>` - Remove credential from keychain
+
+**Examples:**
+```bash
+# Check credential status
+node manageCredentials.js status
+
+# Migrate sensitive credentials to keychain
+node manageCredentials.js migrate
+
+# Set a specific credential
+node manageCredentials.js set DIRECTUS_TOKEN
+
+# Remove a credential
+node manageCredentials.js delete DIRECTUS_TOKEN
+```
+
+**What It Does:**
+- Stores credentials in OS keychain (Windows Credential Manager, macOS Keychain, Linux Secret Service)
+- Allows removing sensitive values from `.env` file
+- Provides masked display of credential values
+
+**Requirements:**
+- Optional `keytar` package: `npm install keytar`
+- Works without keytar (falls back to .env)
+
+**When to Use:**
+- Setting up secure local development
+- Migrating from plaintext .env to keychain
+- Managing credentials across multiple projects
+
+## Configuration
+
+### Schema Selection
+
+The tool supports multiple database schemas for different use cases:
+
+| Schema | Use Case | UID Format | Environment Variable |
+|--------|----------|------------|---------------------|
+| `TokenStaticData` | Lazy dApp (default) | `tokenId!serial` | `DB_SCHEMA=TokenStaticData` |
+| `SecureTradeMetadata` | Marketplace | `tokenId-serial` | `DB_SCHEMA=SecureTradeMetadata` |
+
+**Switching Schemas:**
+
+```bash
+# Use TokenStaticData (default)
+node upload.js 0.0.1234567
+
+# Use SecureTradeMetadata
+DB_SCHEMA=SecureTradeMetadata node upload.js 0.0.1234567
+```
+
+Or set permanently in your `.env` file:
+```env
+DB_SCHEMA=SecureTradeMetadata
+```
+
+### CID Cache
+
+The tool maintains a local cache of known CIDs to reduce database lookups. The cache is:
+
+- **Loaded from file** on startup (`./cache/cid-cache.json`)
+- **Preloaded from database** before processing (automatic)
+- **Saved on exit** to persist across sessions
+
+Cache location can be configured in `config.js`:
+```javascript
+cache: {
+    cidCacheFile: './cache/cid-cache.json',
+    progressStateDir: './state',
+}
+```
+
+### Processing Configuration
+
+Edit `config.js` to customize:
+
+```javascript
+module.exports = {
+    processing: {
+        maxRetries: 18,           // Retry attempts per CID
+        concurrentRequests: 10,   // Parallel fetch requests
+        timeoutMs: 30000,         // Request timeout
+    },
+    database: {
+        writeBatchSize: 50,       // Records per write batch
+        queryLimit: 100,          // Records per query
+        schema: 'TokenStaticData' // or 'SecureTradeMetadata'
+    },
+    // ... other settings
+};
+```
+
 ## Architecture
 
 ### Data Flow
@@ -345,10 +529,10 @@ Hedera Mirror Node → Metadata Scraper → IPFS Gateways
                           ┌──────────────────┴──────────────────┐
                           ↓                                      ↓
                   Directus Database                      Filebase Pinning
-                  (TokenStaticData)                      (IPFS Storage)
+                  (Schema Adapter)                       (IPFS Storage)
                           ↓                                      ↓
                     Lazy dApp                          Filebase Gateway
-                (Fast Access)                      (Reliable Retrieval)
+                    Marketplace                     (Reliable Retrieval)
 ```
 
 ### Key Components
@@ -363,13 +547,32 @@ Hedera Mirror Node → Metadata Scraper → IPFS Gateways
    - Handles retries and failover
    - Supports IPFS, Arweave, HCS storage
    - Extracts and validates CIDs
+   - Uses ProcessingContext for isolated state per job
 
-3. **Static Data Manager** (`tokenStaticDataHelper.js`)
+3. **Processing Context** (`ProcessingContext.js`)
+   - Encapsulates all processing state per job
+   - Enables concurrent processing without state collision
+   - Supports resume capability via serialization
+   - Manages gateway rotation and statistics
+
+4. **Schema Adapter** (`schemaAdapter.js`, `schemaWriter.js`)
+   - Normalizes metadata between different database schemas
+   - Supports TokenStaticData and SecureTradeMetadata
+   - Provides schema-aware database operations
+   - Enables code reuse across different deployments
+
+5. **Static Data Manager** (`tokenStaticDataHelper.js`)
    - Manages Directus database operations
    - Handles IPFS pinning via Filebase
    - Tracks CIDs and pin status
+   - Provides CID cache preloading from database
 
-4. **Filebase Helper** (`filebaseHelper.js`)
+6. **Credential Manager** (`credentialManager.js`)
+   - Validates required credentials at startup
+   - Provides masked display (first 2 / last 2 characters)
+   - Supports interactive credential prompts
+
+7. **Filebase Helper** (`filebaseHelper.js`)
    - Checks pin status via HTTP
    - Interfaces with Filebase API
    - Maintains CID cache
@@ -404,7 +607,7 @@ Metadata retrieval with resilience:
 - **Retry Logic:**
   - Max 18 attempts per CID
   - Gateway rotation
-  - Exponential backoff
+  - Exponential backoff with jitter
 
 ### tokenStaticDataHelper.js
 
@@ -415,6 +618,43 @@ Database and pinning operations:
 - `pinIPFS(cid, name, isImage)` - Pin to Filebase
 - `confirmPin(cid)` - Verify pin status
 - `isValidCID(cid)` - Validate IPFS CID format
+- `preloadCIDCacheFromDB()` - Preload CID cache from database
+- `getCIDCacheSize()` - Get current cache size
+- `loadCIDCache()` / `saveCIDCache()` - File-based cache persistence
+
+### schemaAdapter.js
+
+Schema abstraction layer:
+
+- `createAdapter(schemaName)` - Create adapter for schema
+- `NormalizedMetadata` - Schema-agnostic metadata class
+- `getAvailableSchemas()` - List supported schemas
+- Field mapping between TokenStaticData and SecureTradeMetadata
+
+### schemaWriter.js
+
+Schema-aware database operations:
+
+- `createWriter(schemaName)` - Create writer for schema
+- `getExistingSerials(tokenId)` - Query existing records
+- `writeMetadata(dataList)` - Write normalized metadata
+- `deleteToken(tokenId)` - Delete all records for token
+
+### credentialManager.js
+
+Credential handling utilities:
+
+- `maskCredential(value)` - Mask sensitive values (show first/last 2 chars)
+- `validateCredentials()` - Validate all required credentials
+- `displayCredentialStatus()` - Show masked credential summary
+- `ensureCredentials()` - Validate with optional interactive prompts
+
+### envValidator.js
+
+Environment validation:
+
+- `validateEnvironment()` - Check required env vars
+- `displayMaskedCredentials()` - Show credentials with masking
 
 ### filebaseHelper.js
 
@@ -551,6 +791,284 @@ node validatePins.js -force
    - Script checks for existing data before writing
    - Uses batch operations where possible
    - Filters duplicate entries
+
+## Extending & Forking
+
+If you want to customize this tool for your own use case, here's where to look:
+
+### Adding a New Database Schema
+
+1. **Define the schema** in `utils/schemaAdapter.js`:
+   ```javascript
+   // Add to SCHEMAS object
+   MyCustomSchema: {
+       tableName: 'MyCustomTable',
+       primaryKey: 'uid',
+       fields: {
+           uid: { type: 'string', required: true },
+           // ... your fields
+       },
+       createUid: (tokenId, serial) => `${tokenId}_${serial}`,
+   }
+   ```
+
+2. **Add field mappings** in `FIELD_MAPPINGS`:
+   ```javascript
+   MyCustomSchema: {
+       tokenId: 'my_token_field',
+       serial: 'my_serial_field',
+       // ... map normalized fields to your schema
+   }
+   ```
+
+3. **Set via environment**: `DB_SCHEMA=MyCustomSchema`
+
+### Adding New IPFS Gateways
+
+Edit `config.js`:
+```javascript
+ipfs: {
+    gateways: [
+        'https://your-gateway.com/ipfs/',
+        // ... existing gateways
+    ],
+}
+```
+
+### Adding New Storage Backends (Arweave, etc.)
+
+1. Add gateway config in `config.js`
+2. Update `fetchIPFSJson()` in `metadataScrapeHelper.js` to detect and handle the new protocol
+3. Add CID validation in `tokenStaticDataHelper.js` if needed
+
+### Customizing Processing Logic
+
+Key extension points:
+
+| File | Function | Purpose |
+|------|----------|---------|
+| `metadataScrapeHelper.js` | `processNFT()` | Per-NFT processing logic |
+| `metadataScrapeHelper.js` | `fetchIPFSJson()` | Gateway selection & retry |
+| `ProcessingContext.js` | Constructor | Add custom state tracking |
+| `schemaAdapter.js` | `NormalizedMetadata` | Add custom metadata fields |
+
+### Adding New CLI Commands
+
+1. Create a new file (e.g., `myCommand.js`)
+2. Import utilities from `utils/`
+3. Use `validateEnvironment()` for credential checks
+4. Use `preloadCIDCacheFromDB()` before processing
+
+### Key Files Overview
+
+```
+├── upload.js              # Single collection CLI
+├── bulkUpload.js          # Multi-collection CLI
+├── config.js              # All configuration ← START HERE
+└── utils/
+    ├── metadataScrapeHelper.js   # Core scraping logic
+    ├── ProcessingContext.js      # Job state management
+    ├── schemaAdapter.js          # Schema definitions
+    ├── schemaWriter.js           # Database operations
+    ├── tokenStaticDataHelper.js  # Directus + pinning
+    ├── credentialManager.js      # Credential handling
+    └── gatewayManager.js         # Gateway rotation
+```
+
+## Using as a Library
+
+This package can be used programmatically in your own code:
+
+```javascript
+const { getStaticDataViaMirrors, ProcessingContext } = require('nft-static-data');
+const { createAdapter, NormalizedMetadata } = require('nft-static-data/utils/schemaAdapter');
+const { preloadCIDCacheFromDB } = require('nft-static-data/utils/tokenStaticDataHelper');
+
+// Preload cache
+await preloadCIDCacheFromDB();
+
+// Process a collection
+const ctx = await getStaticDataViaMirrors(
+    'MAIN',           // environment
+    '0.0.1234567',    // tokenId
+    'MyCollection',   // collection name
+    null,             // existing serials (null = fetch from DB)
+    null,             // routeUrl (internal)
+    false,            // dryRun
+    (completed, total, errors) => {
+        console.log(`Progress: ${completed}/${total}`);
+    }
+);
+
+console.log('Results:', ctx.getSummary());
+```
+
+## Secure Credential Storage
+
+The tool supports **multiple credential sources** that work together. Credentials are loaded in this priority order:
+
+1. **Environment variables** (from `.env` file or shell)
+2. **OS Keychain** (if keytar is installed and credentials are stored)
+
+This means you can:
+- Use `.env` only (simple setup)
+- Use keychain only (most secure)
+- Use both (keychain for sensitive values, .env for URLs)
+
+### Option 1: Environment File Only (Simple)
+
+Create a `.env` file with all credentials:
+
+```env
+DIRECTUS_DB_URL=https://your-directus-instance.com
+DIRECTUS_TOKEN=your-secret-token
+FILEBASE_PINNING_SERVICE=https://api.filebase.io/v1/ipfs/pins
+FILEBASE_PINNING_API_KEY=your-api-key
+```
+
+This works out of the box with no additional setup.
+
+### Option 2: OS Keychain (Recommended for Security)
+
+Store sensitive credentials in your OS keychain (Windows Credential Manager, macOS Keychain, or Linux Secret Service):
+
+```bash
+# Check current status
+node manageCredentials.js status
+
+# Migrate sensitive credentials from .env to keychain
+node manageCredentials.js migrate
+
+# Or set credentials individually
+node manageCredentials.js set DIRECTUS_TOKEN
+node manageCredentials.js set FILEBASE_PINNING_API_KEY
+```
+
+After migration, update your `.env` to only contain non-sensitive values:
+
+```env
+# .env - safe to have less sensitive values here
+DIRECTUS_DB_URL=https://your-directus-instance.com
+FILEBASE_PINNING_SERVICE=https://api.filebase.io/v1/ipfs/pins
+
+# Sensitive values now in OS keychain - remove these lines:
+# DIRECTUS_TOKEN=...
+# FILEBASE_PINNING_API_KEY=...
+```
+
+**Benefits of keychain storage:**
+- Credentials encrypted by OS
+- Not stored in plaintext files
+- Survives `.env` file deletion
+- Works across terminal sessions
+
+### Option 3: Hybrid Approach (Recommended for Teams)
+
+Use `.env` for non-sensitive configuration and keychain for secrets:
+
+```env
+# .env - committed to repo or shared
+DIRECTUS_DB_URL=https://your-directus-instance.com
+FILEBASE_PINNING_SERVICE=https://api.filebase.io/v1/ipfs/pins
+DB_SCHEMA=TokenStaticData
+```
+
+```bash
+# Each developer sets up their own secrets locally
+node manageCredentials.js set DIRECTUS_TOKEN
+node manageCredentials.js set FILEBASE_PINNING_API_KEY
+```
+
+### Option 4: Encrypted Environment Files (CI/CD)
+
+For automated deployments, use [dotenv-vault](https://www.dotenv.org/docs/security/env-vault) or [sops](https://github.com/getsops/sops):
+
+```bash
+# Encrypt your .env
+npx dotenv-vault encrypt
+
+# In CI/CD, use the encrypted vault
+DOTENV_KEY=your-vault-key node upload.js 0.0.1234567
+```
+
+### Option 5: Cloud Secret Managers (Production)
+
+For production deployments, integrate with cloud providers:
+
+```javascript
+// AWS Secrets Manager example
+const { SecretsManager } = require('@aws-sdk/client-secrets-manager');
+
+async function loadFromAWS() {
+    const client = new SecretsManager({ region: 'us-east-1' });
+    const secret = await client.getSecretValue({ SecretId: 'nft-scraper-creds' });
+    const creds = JSON.parse(secret.SecretString);
+
+    process.env.DIRECTUS_TOKEN = creds.DIRECTUS_TOKEN;
+    process.env.FILEBASE_PINNING_API_KEY = creds.FILEBASE_API_KEY;
+}
+```
+
+### Credential Priority & Loading
+
+When the application starts, credentials are loaded in this order:
+
+```
+1. .env file loaded via dotenv
+2. OS keychain checked for any missing credentials
+3. Environment variables from shell (highest priority)
+```
+
+This means:
+- Shell `export DIRECTUS_TOKEN=xxx` overrides everything
+- `.env` values are used if set
+- Keychain fills in any gaps
+
+### Security Best Practices
+
+1. **Never commit `.env` files** - Already in `.gitignore`
+2. **Use masked display** - `--verbose` shows `ab****yz` format
+3. **Prefer keychain for secrets** - Use `node manageCredentials.js migrate`
+4. **Rotate credentials** - Especially after team changes
+5. **Use least privilege** - Directus tokens should have minimal permissions
+6. **Audit access** - Enable logging in Directus for API calls
+
+## NPM Package Setup
+
+To publish as an NPM package:
+
+1. **Update package.json**:
+   ```json
+   {
+     "name": "@your-org/nft-metadata-scraper",
+     "version": "1.0.0",
+     "main": "index.js",
+     "exports": {
+       ".": "./index.js",
+       "./utils/*": "./utils/*.js"
+     },
+     "bin": {
+       "nft-upload": "./upload.js",
+       "nft-bulk-upload": "./bulkUpload.js"
+     }
+   }
+   ```
+
+2. **Create index.js** for clean exports:
+   ```javascript
+   module.exports = {
+     getStaticDataViaMirrors: require('./utils/metadataScrapeHelper').getStaticDataViaMirrors,
+     ProcessingContext: require('./utils/ProcessingContext'),
+     SchemaAdapter: require('./utils/schemaAdapter'),
+     // ... other exports
+   };
+   ```
+
+3. **Publish**:
+   ```bash
+   npm login --scope=@your-org
+   npm publish --access public
+   ```
 
 ## Support
 
