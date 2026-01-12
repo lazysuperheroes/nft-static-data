@@ -12,8 +12,11 @@ process.env.DB_SCHEMA = 'TokenStaticData';
 
 // Suppress console output during tests unless debugging
 if (!process.env.DEBUG_TESTS) {
+	// eslint-disable-next-line no-empty-function
 	jest.spyOn(console, 'log').mockImplementation(() => {});
+	// eslint-disable-next-line no-empty-function
 	jest.spyOn(console, 'info').mockImplementation(() => {});
+	// eslint-disable-next-line no-empty-function
 	jest.spyOn(console, 'warn').mockImplementation(() => {});
 	// Keep error for debugging
 }
