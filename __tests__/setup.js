@@ -12,12 +12,8 @@ process.env.DB_SCHEMA = 'TokenStaticData';
 
 // Suppress console output during tests unless debugging
 if (!process.env.DEBUG_TESTS) {
-	global.console = {
-		...console,
-		log: jest.fn(),
-		info: jest.fn(),
-		warn: jest.fn(),
-		// Keep error for debugging
-		error: console.error,
-	};
+	jest.spyOn(console, 'log').mockImplementation(() => {});
+	jest.spyOn(console, 'info').mockImplementation(() => {});
+	jest.spyOn(console, 'warn').mockImplementation(() => {});
+	// Keep error for debugging
 }
