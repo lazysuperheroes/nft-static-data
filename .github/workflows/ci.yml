@@ -70,3 +70,8 @@ jobs:
 
       - name: Verify imports
         run: node -e "require('./index.js'); console.log('All imports successful')"
+        env:
+          DIRECTUS_DB_URL: https://test.example.com
+          DIRECTUS_TOKEN: test-token
+          FILEBASE_PINNING_SERVICE: https://api.filebase.io/v1/ipfs/pins
+          FILEBASE_PINNING_API_KEY: test-key
