@@ -17,14 +17,20 @@
     "nft-upload": "./upload.js",
     "nft-bulk-upload": "./bulkUpload.js",
     "nft-validate-pins": "./validatePins.js",
-    "nft-credentials": "./manageCredentials.js"
+    "nft-credentials": "./manageCredentials.js",
+    "nft-analyze-errors": "./analyzeErrors.js",
+    "nft-filebase": "./checkFileBaseStatus.js"
   },
   "scripts": {
     "upload": "node upload.js",
     "bulk-upload": "node bulkUpload.js",
     "validate-pins": "node validatePins.js",
     "credentials": "node manageCredentials.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "analyze-errors": "node analyzeErrors.js",
+    "filebase": "node checkFileBaseStatus.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "lint": "eslint ."
   },
   "keywords": [
@@ -64,7 +70,8 @@
     "winston": "^3.11.0"
   },
   "devDependencies": {
-    "eslint": "^8.57.0"
+    "eslint": "^8.57.0",
+    "jest": "^30.2.0"
   },
   "optionalDependencies": {
     "keytar": "^7.9.0"
@@ -76,6 +83,8 @@
     "bulkUpload.js",
     "validatePins.js",
     "manageCredentials.js",
+    "analyzeErrors.js",
+    "checkFileBaseStatus.js",
     "utils/",
     "README.md",
     "CHANGELOG.md",

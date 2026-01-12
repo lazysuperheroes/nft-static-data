@@ -1,8 +1,8 @@
 # NFT Static Data Uploader
 
-[![npm version](https://img.shields.io/npm/v/@lazysuperheroes/nft-static-data.svg)](https://www.npmjs.com/package/@lazysuperheroes/nft-static-data)
+[![CI](https://github.com/lazysuperheroes/nft-static-data/actions/workflows/ci.yml/badge.svg)](https://github.com/lazysuperheroes/nft-static-data/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js Version](https://img.shields.io/node/v/@lazysuperheroes/nft-static-data.svg)](https://nodejs.org)
+[![Node.js](https://img.shields.io/badge/node-18%20%7C%2020%20%7C%2022-brightgreen)](https://nodejs.org)
 
 A comprehensive tool suite for scraping, storing, and managing NFT metadata from Hedera networks. This project works in conjunction with the Lazy dApp and SecureTrade Marketplace to enable faster NFT operations by pre-caching static metadata.
 
@@ -13,7 +13,9 @@ A comprehensive tool suite for scraping, storing, and managing NFT metadata from
 - **IPFS pinning** - Automatic pinning to Filebase with retry logic
 - **Gateway rotation** - Multiple IPFS/Arweave gateways with smart failover
 - **Progress tracking** - Resume interrupted uploads, real-time progress bars
-- **NPM package** - Use as CLI tools or import as a library
+- **Error analysis** - Categorized error tracking with root cause analysis tools
+- **CI/CD ready** - GitHub Actions workflow for automated linting and testing
+- **Comprehensive test suite** - 100+ unit tests with Jest for regression prevention
 
 ## Table of Contents
 
@@ -27,11 +29,13 @@ A comprehensive tool suite for scraping, storing, and managing NFT metadata from
   - [uploadEligibleNFTs.js - Register Eligible Collections](#uploadeligiblenftsjs---register-eligible-collections)
   - [validatePins.js - Verify IPFS Pins](#validatepinsjs---verify-ipfs-pins)
   - [checkFileBaseStatus.js - Monitor Filebase](#checkfilebasestatusjs---monitor-filebase)
+  - [analyzeErrors.js - Error Analysis](#analyzeerrorsjs---error-analysis)
   - [getStaticData.js - Query Metadata](#getstaticdatajs---query-metadata)
   - [getPost.js - Test Database Connection](#getpostjs---test-database-connection)
 - [Architecture](#architecture)
 - [Utilities](#utilities)
 - [Workflow](#workflow)
+- [Development](#development)
 - [Troubleshooting](#troubleshooting)
 
 ## Overview
@@ -344,12 +348,25 @@ node validatePins.js [-force]
 
 ### checkFileBaseStatus.js - Monitor Filebase
 
-**Purpose:** Query and manage Filebase pinning status interactively.
+**Purpose:** Query and manage Filebase pinning status interactively or via CLI flags.
 
 **Usage:**
 ```bash
+# Interactive mode
 node checkFileBaseStatus.js
+
+# CLI mode with flags
+node checkFileBaseStatus.js --status queued
+node checkFileBaseStatus.js --failed
+node checkFileBaseStatus.js --retry ./errors/errors-2025-01-12.json
+node checkFileBaseStatus.js --cleanup
 ```
+
+**CLI Flags:**
+- `--status <status>` - Query pins by status (queued, pinning, pinned, failed)
+- `--failed` - Shorthand for `--status failed`
+- `--retry <file>` - Retry failed CIDs from an error export JSON file
+- `--cleanup` - Delete all failed pin requests
 
 **Interactive Options:**
 1. **queued** - Show pins waiting to be processed
@@ -365,16 +382,68 @@ node checkFileBaseStatus.js
 - Displays request IDs and CIDs
 - Allows cleanup of failed pins
 - Helps monitor pinning progress
+- Retries pins from error export files
 
 **When to Use:**
 - Debugging pinning issues
 - Monitoring large batch uploads
 - Cleaning up failed pin requests
 - Investigating specific CID problems
+- Recovering from errors using exported error files
 
 **Limits:**
 - Returns up to 100 results per query
 - Delete operations are permanent
+
+---
+
+### analyzeErrors.js - Error Analysis
+
+**Purpose:** Analyze error patterns and identify root causes from processing logs and exports.
+
+**Usage:**
+```bash
+# Analyze recent winston logs
+node analyzeErrors.js
+
+# Analyze specific error export file
+node analyzeErrors.js --file ./errors/errors-2025-01-12.json
+
+# Show detailed breakdown
+node analyzeErrors.js --verbose
+```
+
+**Options:**
+- `--file <path>` - Analyze a specific error export JSON file
+- `--verbose` - Show detailed error breakdown by category
+
+**Error Categories:**
+- **fetchMetadata** - Failed to retrieve metadata from gateways
+- **pinMetadata** - Failed to pin metadata CID to Filebase
+- **pinImage** - Failed to pin image CID to Filebase
+- **databaseWrite** - Failed to write to Directus database
+- **gatewayTimeout** - Gateway timeout errors
+- **invalidCID** - Invalid or malformed CID detected
+
+**Output Includes:**
+- Error count by category
+- Most affected token IDs
+- Gateway failure rates
+- Root cause recommendations
+- Actionable remediation steps
+
+**What It Does:**
+- Parses winston log files (logs/error.log)
+- Reads error export JSON files from ProcessingContext
+- Correlates errors with Filebase pin status
+- Generates root cause recommendations
+- Identifies patterns (e.g., specific gateways failing)
+
+**When to Use:**
+- After processing completes with errors
+- To identify systematic issues
+- Before running retry operations
+- To understand why CIDs are failing
 
 ---
 
@@ -743,6 +812,78 @@ node checkFileBaseStatus.js
 node validatePins.js -force
 ```
 
+## Development
+
+### Running Tests
+
+The project uses Jest for unit testing with 100+ tests covering core functionality.
+
+```bash
+# Run all tests
+npm test
+
+# Run tests with coverage report
+npm run test:coverage
+
+# Run tests in watch mode during development
+npm run test:watch
+```
+
+### Test Coverage
+
+Tests cover the following modules:
+
+| Module | Tests | Coverage |
+|--------|-------|----------|
+| ProcessingContext | State management, serialization, error tracking | Core job state |
+| metadataScrapeHelper | CID extraction, URL parsing | IPFS/Arweave URL formats |
+| tokenStaticDataHelper | CID validation, data structures | CID format validation |
+| analyzeErrors | Error categorization, recommendations | Error analysis |
+| checkFileBaseStatus | API mocking, status queries | Filebase integration |
+
+### Linting
+
+```bash
+# Run ESLint
+npm run lint
+
+# Auto-fix issues
+npm run lint:fix
+```
+
+### CI/CD
+
+The project uses GitHub Actions for continuous integration:
+
+- **Lint job**: Runs ESLint on all JavaScript files
+- **Test job**: Runs Jest test suite with coverage
+- **Build job**: Verifies imports work on Node.js 18, 20, and 22
+
+CI runs automatically on:
+- Push to `main` branch
+- Pull requests targeting `main`
+
+### Adding New Tests
+
+Test files are located in `__tests__/` directory. Follow existing patterns:
+
+```javascript
+// __tests__/myModule.test.js
+const { myFunction } = require('../utils/myModule');
+
+describe('myModule', () => {
+    describe('myFunction', () => {
+        it('should handle valid input', () => {
+            expect(myFunction('input')).toBe('expected');
+        });
+
+        it('should handle null input', () => {
+            expect(myFunction(null)).toBeNull();
+        });
+    });
+});
+```
+
 ## Troubleshooting
 
 ### Common Issues
@@ -1046,43 +1187,6 @@ This means:
 5. **Use least privilege** - Directus tokens should have minimal permissions
 6. **Audit access** - Enable logging in Directus for API calls
 
-## NPM Package Setup
-
-To publish as an NPM package:
-
-1. **Update package.json** (already configured):
-   ```json
-   {
-     "name": "@lazysuperheroes/nft-static-data",
-     "version": "1.0.0",
-     "main": "index.js",
-     "exports": {
-       ".": "./index.js",
-       "./utils/*": "./utils/*.js"
-     },
-     "bin": {
-       "nft-upload": "./upload.js",
-       "nft-bulk-upload": "./bulkUpload.js"
-     }
-   }
-   ```
-
-2. **Create index.js** for clean exports:
-   ```javascript
-   module.exports = {
-     getStaticDataViaMirrors: require('./utils/metadataScrapeHelper').getStaticDataViaMirrors,
-     ProcessingContext: require('./utils/ProcessingContext'),
-     SchemaAdapter: require('./utils/schemaAdapter'),
-     // ... other exports
-   };
-   ```
-
-3. **Publish**:
-   ```bash
-   npm login --scope=@lazysuperheroes
-   npm publish --access public
-   ```
-
 ## Support
 
 For issues or questions:
@@ -1094,4 +1198,4 @@ For issues or questions:
 
 ## License
 
-[Add your license here]
+MIT License - See [LICENSE](LICENSE) file for details.

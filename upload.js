@@ -130,14 +130,29 @@ async function main() {
 		}).catch(err => logger.error('Failed to save progress', { error: err.message }));
 	};
 
-	await getStaticDataViaMirrors(env, address, collection, savedProgress?.serials || null, null, dryRun, progressCallback);
+	const ctx = await getStaticDataViaMirrors(env, address, collection, savedProgress?.serials || null, null, dryRun, progressCallback);
 
 	if (progressBarStarted) {
 		progressBar.stop();
 	}
 
+	// Export errors if any occurred
+	if (ctx && ctx.getTotalErrorCount() > 0) {
+		const errorFile = await ctx.exportErrors();
+		console.log(`\n⚠ ${ctx.getTotalErrorCount()} errors occurred. Error report saved to: ${errorFile}`);
+		console.log('  Run "node analyzeErrors.js" to analyze errors and get recommendations.');
+		console.log('  Run "node checkFileBaseStatus.js --retry" to retry failed pins.');
+
+		// Print error summary
+		const summary = ctx.getErrorSummary();
+		console.log('\nError Summary:');
+		for (const [category, info] of Object.entries(summary)) {
+			console.log(`  ${category}: ${info.count}`);
+		}
+	}
+
 	await progressManager.clearProgress(address);
-	logger.info('Upload completed', { address, collection });
+	logger.info('Upload completed', { address, collection, errors: ctx?.getTotalErrorCount() || 0 });
 }
 
 main().then(() => {

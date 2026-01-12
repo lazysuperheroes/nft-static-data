@@ -9,6 +9,14 @@
 		"ecmaVersion": 2021,
 		"sourceType": "module"
 	},
+	"overrides": [
+		{
+			"files": ["__tests__/**/*.js", "**/*.test.js"],
+			"env": {
+				"jest": true
+			}
+		}
+	],
 	"rules": {
 		"arrow-spacing": ["warn", { "before": true, "after": true }],
 		"brace-style": ["error", "stroustrup", { "allowSingleLine": true }],

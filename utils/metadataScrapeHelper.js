@@ -181,7 +181,12 @@ async function processNFT(nft, tokenId, collection, allTokenSerials, ctx) {
 	const metadataJSON = await fetchIPFSJson(ipfsString, 0, serialNum, ctx);
 
 	if (metadataJSON == null) {
-		ctx.recordErrorSerial(tokenId, serialNum);
+		ctx.recordCategorizedError('fetchMetadata', {
+			serial: serialNum,
+			tokenId,
+			cid: extractCIDFromUrl(metadataString),
+			message: 'Failed to fetch metadata JSON after max retries',
+		});
 		console.log('**Error processing:', serialNum);
 		return;
 	}
@@ -195,7 +200,12 @@ async function processNFT(nft, tokenId, collection, allTokenSerials, ctx) {
 		// let's pin it
 		const status = await pinIPFS(metadataCID, `${tokenId} - ${collection} - ${serialNum}-meta`, false);
 		if (!status) {
-			ctx.recordErrorSerial(tokenId, serialNum);
+			ctx.recordCategorizedError('pinMetadata', {
+				serial: serialNum,
+				tokenId,
+				cid: metadataCID,
+				message: 'Failed to pin metadata CID',
+			});
 			console.log('**Error pinning:', serialNum);
 		}
 	}
@@ -206,7 +216,12 @@ async function processNFT(nft, tokenId, collection, allTokenSerials, ctx) {
 		// let's pin it
 		const status = await pinIPFS(imageCID, `${tokenId} - ${collection}- ${serialNum}-img`, true);
 		if (!status) {
-			ctx.recordErrorSerial(tokenId, serialNum);
+			ctx.recordCategorizedError('pinImage', {
+				serial: serialNum,
+				tokenId,
+				cid: imageCID,
+				message: 'Failed to pin image CID',
+			});
 			console.log('**Error pinning (image):', serialNum);
 		}
 	}
@@ -289,23 +304,69 @@ async function fetchJson(url, depth = 0, ctx = null) {
 
 /**
  * Extract CID from URL
- * If not a valid IPFS link (i.e. hosted on Arweave or AWS) return null
- * To avoid trying to pin it to IPFS
+ * Supports IPFS (various gateways) and Arweave URLs
+ * Returns null for non-IPFS/Arweave URLs to avoid pinning non-IPFS content
+ *
+ * Supported formats:
+ * - IPFS: ipfs://CID, https://gateway/ipfs/CID, CID.ipfs.dweb.link
+ * - Arweave: ar://CID, https://arweave.net/CID, https://ar-io.dev/CID, etc.
+ * - Direct: bare CID (detected by pattern)
  */
 function extractCIDFromUrl(url) {
 	if (!url) return null;
 
-	if (url.toLowerCase().includes('ar://') || url.toLowerCase().includes('arweave')) {
-		const cleanURL = url.replace(/^ar:\/\/|https:\/\/arweave\.net\//, '');
-		return cleanURL.split('/')[0];
+	const lowerUrl = url.toLowerCase();
+
+	// Arweave detection: ar:// protocol or known arweave domains
+	if (lowerUrl.startsWith('ar://')) {
+		// ar://CID or ar://CID/path
+		return url.slice(5).split('/')[0];
 	}
 
-	if (!url.toLowerCase().includes('ipfs')) {
-		return url.split('/')[0];
+	// Known Arweave gateways
+	const arweaveGatewayPattern = /^https?:\/\/(?:arweave\.net|ar-io\.dev|permagate\.io|arweave\.developerdao\.com)\/(.+)/i;
+	const arweaveMatch = url.match(arweaveGatewayPattern);
+	if (arweaveMatch) {
+		return arweaveMatch[1].split('/')[0];
 	}
-	// remove the ipfs:// prefix and anything after the CID
-	const cleanIPFS = url.replace(/^ipfs:\/\/|https:\/\/ipfs\.infura\.io\/ipfs\/|https:\/\/cloudflare-ipfs\.com\/ipfs\//, '');
-	return cleanIPFS.split('/')[0];
+
+	// IPFS detection
+	if (lowerUrl.startsWith('ipfs://')) {
+		// ipfs://CID or ipfs://CID/path
+		return url.slice(7).split('/')[0];
+	}
+
+	// Generic IPFS gateway pattern: any URL with /ipfs/CID in path
+	const ipfsPathPattern = /\/ipfs\/([^/?#]+)/i;
+	const ipfsMatch = url.match(ipfsPathPattern);
+	if (ipfsMatch) {
+		return ipfsMatch[1];
+	}
+
+	// Subdomain-style IPFS: CID.ipfs.dweb.link or CID.ipfs.*.com
+	const subdomainPattern = /^https?:\/\/([^.]+)\.ipfs\.[^/]+/i;
+	const subdomainMatch = url.match(subdomainPattern);
+	if (subdomainMatch) {
+		return subdomainMatch[1];
+	}
+
+	// HCS (Hedera Consensus Service) URLs - not IPFS, return the topic ID
+	if (lowerUrl.includes('hcs://')) {
+		const hcsParts = url.split('/');
+		return hcsParts[hcsParts.length - 1];
+	}
+
+	// If no IPFS/Arweave pattern matched, check if it looks like a bare CID
+	// CIDv0: Qm followed by 44 base58 chars (46 total)
+	// CIDv1: b followed by 58 base32 chars (59 total)
+	const firstSegment = url.split('/')[0];
+	if (/^Qm[1-9A-HJ-NP-Za-km-z]{44}$/.test(firstSegment) ||
+		/^b[a-z2-7]{58}$/i.test(firstSegment)) {
+		return firstSegment;
+	}
+
+	// Not a recognized IPFS/Arweave URL
+	return null;
 }
 
 /**

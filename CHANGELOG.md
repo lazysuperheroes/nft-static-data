@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - Unreleased
+
+### Added
+- **Enhanced error tracking**: Categorized error tracking (fetchMetadata, pinMetadata, pinImage, databaseWrite, gatewayTimeout, invalidCID)
+- **Error analysis CLI**: `analyzeErrors.js` parses winston logs and error exports to identify patterns and root causes
+- **Filebase management CLI**: Enhanced `checkFileBaseStatus.js` with retry-from-error-export capability
+- **Automatic error export**: Upload scripts now export error reports when processing completes with errors
+- **Root cause recommendations**: Error analysis generates actionable recommendations for common issues
+- **GitHub Actions CI**: Automated linting, testing, and build verification on push/PR
+- **Unit test suite**: 88 tests covering ProcessingContext, CID validation, error analysis, and Filebase integration
+
+### Changed
+- ProcessingContext now tracks errors by category with full details (CID, gateway, retry count)
+- Error summary included in completion logs
+- Filebase status checker integrates with error export files for targeted pin retry
+
 ## [1.0.0] - 2025-01-12
 
 ### Added

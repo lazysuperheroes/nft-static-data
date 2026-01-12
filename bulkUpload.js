@@ -128,17 +128,24 @@ async function main() {
 			}
 		};
 
-		await getStaticDataViaMirrors(env, address, collection, null, null, dryRun, progressCallback);
+		const ctx = await getStaticDataViaMirrors(env, address, collection, null, null, dryRun, progressCallback);
 
 		if (progressBarStarted) {
 			progressBar.stop();
 		}
 
-		logger.info('Collection completed', { address, collection });
+		// Export errors if any occurred
+		if (ctx && ctx.getTotalErrorCount() > 0) {
+			const errorFile = await ctx.exportErrors();
+			console.log(`  ⚠ ${ctx.getTotalErrorCount()} errors - saved to: ${errorFile}`);
+		}
+
+		logger.info('Collection completed', { address, collection, errors: ctx?.getTotalErrorCount() || 0 });
 	}
 
 	console.log(`\n${'='.repeat(80)}`);
 	console.log(`✓ Bulk upload complete: ${validation.valid.length} collections processed`);
+	console.log('  Run "node analyzeErrors.js --all" to analyze all errors.');
 	console.log('='.repeat(80));
 }
 

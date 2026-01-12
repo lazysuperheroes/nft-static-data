@@ -27,6 +27,18 @@ class ProcessingContext {
 		this.actualTotal = 0;
 		this.errorSerials = [];
 
+		// Enhanced error tracking with categorization
+		// Categories: fetchMetadata, pinMetadata, pinImage, databaseWrite, gatewayTimeout, invalidCID, other
+		this.errors = {
+			fetchMetadata: [],
+			pinMetadata: [],
+			pinImage: [],
+			databaseWrite: [],
+			gatewayTimeout: [],
+			invalidCID: [],
+			other: [],
+		};
+
 		// Configuration
 		this.dryRun = options.dryRun || false;
 		this.maxRetries = options.maxRetries || config.processing.maxRetries;
@@ -42,7 +54,8 @@ class ProcessingContext {
 
 		// Schema support
 		this.schemaName = options.schema || config.database?.schema || 'TokenStaticData';
-		this.schemaWriter = options.schemaWriter || null; // Lazy initialization
+		// Lazy initialization - created on first use via getSchemaWriter()
+		this.schemaWriter = options.schemaWriter || null;
 
 		// Environment mapping
 		this.envMap = new Map([
@@ -65,6 +78,16 @@ class ProcessingContext {
 		this.totalToProcess = 0;
 		this.actualTotal = 0;
 		this.errorSerials = [];
+		// Reset categorized errors
+		this.errors = {
+			fetchMetadata: [],
+			pinMetadata: [],
+			pinImage: [],
+			databaseWrite: [],
+			gatewayTimeout: [],
+			invalidCID: [],
+			other: [],
+		};
 		logger.info('Processing context started', {
 			tokenId: this.tokenId,
 			collection: this.collection,
@@ -124,6 +147,107 @@ class ProcessingContext {
 	 */
 	recordErrorSerial(tokenId, serial) {
 		this.errorSerials.push(`${tokenId}${serial}`);
+	}
+
+	/**
+	 * Record a categorized error with full details
+	 * @param {string} category - Error category: fetchMetadata, pinMetadata, pinImage, databaseWrite, gatewayTimeout, invalidCID, other
+	 * @param {object} details - Error details
+	 */
+	recordCategorizedError(category, details) {
+		const errorEntry = {
+			timestamp: Date.now(),
+			tokenId: details.tokenId || this.tokenId,
+			serial: details.serial,
+			cid: details.cid || null,
+			gateway: details.gateway || null,
+			message: details.message || details.error?.message || 'Unknown error',
+			stack: details.error?.stack || null,
+			retryCount: details.retryCount || 0,
+		};
+
+		if (this.errors[category]) {
+			this.errors[category].push(errorEntry);
+		}
+		else {
+			this.errors.other.push({ ...errorEntry, category });
+		}
+
+		// Also add to legacy errorSerials for backward compatibility
+		if (details.serial) {
+			this.errorSerials.push(`${errorEntry.tokenId}${details.serial}`);
+		}
+
+		// Log to winston
+		logger.error(`Processing error: ${category}`, errorEntry);
+	}
+
+	/**
+	 * Get total error count across all categories
+	 */
+	getTotalErrorCount() {
+		return Object.values(this.errors).reduce((sum, arr) => sum + arr.length, 0);
+	}
+
+	/**
+	 * Get error summary by category
+	 */
+	getErrorSummary() {
+		const summary = {};
+		for (const [category, errors] of Object.entries(this.errors)) {
+			if (errors.length > 0) {
+				summary[category] = {
+					count: errors.length,
+					samples: errors.slice(0, 3).map(e => ({
+						serial: e.serial,
+						cid: e.cid,
+						message: e.message,
+					})),
+				};
+			}
+		}
+		return summary;
+	}
+
+	/**
+	 * Get all errors as a flat list for analysis
+	 */
+	getAllErrors() {
+		const allErrors = [];
+		for (const [category, errors] of Object.entries(this.errors)) {
+			for (const error of errors) {
+				allErrors.push({ category, ...error });
+			}
+		}
+		return allErrors.sort((a, b) => a.timestamp - b.timestamp);
+	}
+
+	/**
+	 * Export errors to JSON file for analysis
+	 */
+	async exportErrors(filePath = null) {
+		const fs = require('fs').promises;
+		const path = require('path');
+
+		const exportPath = filePath || path.join(
+			config.cache.progressStateDir,
+			`errors-${this.tokenId || 'unknown'}-${Date.now()}.json`,
+		);
+
+		const exportData = {
+			tokenId: this.tokenId,
+			collection: this.collection,
+			environment: this.environment,
+			exportTime: new Date().toISOString(),
+			summary: this.getErrorSummary(),
+			totalErrors: this.getTotalErrorCount(),
+			errors: this.getAllErrors(),
+		};
+
+		await fs.mkdir(path.dirname(exportPath), { recursive: true });
+		await fs.writeFile(exportPath, JSON.stringify(exportData, null, 2));
+		logger.info('Errors exported', { path: exportPath, count: this.getTotalErrorCount() });
+		return exportPath;
 	}
 
 	/**
@@ -190,6 +314,8 @@ class ProcessingContext {
 			total: this.actualTotal,
 			errors: this.errorSerials.length,
 			errorSerials: this.errorSerials,
+			errorsByCategory: this.getErrorSummary(),
+			totalCategorizedErrors: this.getTotalErrorCount(),
 			durationMs: this.endTime ? (this.endTime - this.startTime) : null,
 			dryRun: this.dryRun,
 		};
@@ -207,6 +333,7 @@ class ProcessingContext {
 			totalToProcess: this.totalToProcess,
 			actualTotal: this.actualTotal,
 			errorSerials: this.errorSerials,
+			errors: this.errors,
 			dryRun: this.dryRun,
 			startTime: this.startTime,
 			schemaName: this.schemaName,
@@ -229,6 +356,10 @@ class ProcessingContext {
 		ctx.totalToProcess = json.totalToProcess || 0;
 		ctx.actualTotal = json.actualTotal || 0;
 		ctx.errorSerials = json.errorSerials || [];
+		// Restore categorized errors if present
+		if (json.errors) {
+			ctx.errors = json.errors;
+		}
 		ctx.startTime = json.startTime || Date.now();
 		return ctx;
 	}

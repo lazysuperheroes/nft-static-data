@@ -53,6 +53,25 @@ const {
 	loadCredentialsFromKeychain,
 } = require('./utils/credentialManager');
 
+// Error analysis and Filebase utilities
+const {
+	analyzeErrorFile,
+	analyzeLogs,
+	checkFilebaseStatus,
+	generateRecommendations,
+	findLatestErrorFile,
+} = require('./analyzeErrors');
+
+const {
+	getPinStatusSummary,
+	getPinsByStatus,
+	deletePin,
+	deleteAllFailedPins,
+	checkCIDStatus,
+	pinCID,
+	retryFromErrorExport,
+} = require('./checkFileBaseStatus');
+
 // Configuration
 const config = require('./config');
 
@@ -103,6 +122,22 @@ module.exports = {
 	ensureCredentials,
 	isKeychainAvailable,
 	loadCredentialsFromKeychain,
+
+	// Error Analysis
+	analyzeErrorFile,
+	analyzeLogs,
+	checkFilebaseStatus,
+	generateRecommendations,
+	findLatestErrorFile,
+
+	// Filebase Pin Management
+	getPinStatusSummary,
+	getPinsByStatus,
+	deletePin,
+	deleteAllFailedPins,
+	checkCIDStatus,
+	pinCID,
+	retryFromErrorExport,
 
 	// Config
 	config,
