@@ -91,10 +91,13 @@ class GatewayManager {
 	}
 
 	printStats() {
+		const stats = this.getStats();
+		const hasActivity = stats.some(s => s.successCount > 0 || s.failCount > 0);
+		if (!hasActivity) return;
+
 		console.log(`\n📊 Gateway Statistics (${this.type.toUpperCase()}):`);
 		console.log('━'.repeat(80));
 
-		const stats = this.getStats();
 		stats.forEach(stat => {
 			const urlShort = stat.url.length > 50 ? stat.url.substring(0, 47) + '...' : stat.url;
 			console.log(`${urlShort.padEnd(50)} | Success: ${String(stat.successCount).padStart(4)} | Fail: ${String(stat.failCount).padStart(4)} | Rate: ${stat.successRate.padStart(6)} | Avg: ${String(stat.avgResponseTime).padStart(5)}ms`);

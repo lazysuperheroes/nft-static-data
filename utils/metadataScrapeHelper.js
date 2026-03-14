@@ -380,8 +380,12 @@ function extractCIDFromUrl(url) {
  */
 async function fetchIPFSJson(ipfsUrl, depth = 0, seed = 0, ctx = null) {
 	const startTime = Date.now();
-	const ipfsGatewayManager = ctx?.ipfsGatewayManager || new (require('./gatewayManager'))(config.ipfs.gateways, 'ipfs');
-	const arweaveGatewayManager = ctx?.arweaveGatewayManager || new (require('./gatewayManager'))(config.arweave.gateways, 'arweave');
+	const GatewayManager = require('./gatewayManager');
+	const ipfsGatewayManager = ctx?.ipfsGatewayManager || new GatewayManager(config.ipfs.gateways, 'ipfs');
+	const arweaveGatewayManager = ctx?.arweaveGatewayManager || new GatewayManager(config.arweave.gateways, 'arweave');
+	const filebaseGatewayManager = ctx?.filebaseGatewayManager || new GatewayManager([config.ipfs.filebaseGateway], 'filebase');
+	const hcsGatewayManager = ctx?.hcsGatewayManager || new GatewayManager(['https://tier.bot/api/hashinals-cdn/'], 'hcs');
+	const directGatewayManager = ctx?.directGatewayManager || new GatewayManager(['direct'], 'direct');
 	const max = ctx?.maxRetries || maxRetries;
 
 	if (depth >= max) {
@@ -450,6 +454,9 @@ async function fetchIPFSJson(ipfsUrl, depth = 0, seed = 0, ctx = null) {
 		if (res.status != 200) {
 			if (gatewayType === 'ipfs') ipfsGatewayManager.recordFailure(url.split('/ipfs/')[0] + '/ipfs/');
 			if (gatewayType === 'arweave') arweaveGatewayManager.recordFailure(url.split('/')[0] + '//' + url.split('/')[2] + '/');
+			if (gatewayType === 'filebase') filebaseGatewayManager.recordFailure(config.ipfs.filebaseGateway);
+			if (gatewayType === 'hcs') hcsGatewayManager.recordFailure('https://tier.bot/api/hashinals-cdn/');
+			if (gatewayType === 'direct') directGatewayManager.recordFailure('direct');
 			await sleep(sleepTime);
 			return await fetchIPFSJson(ipfsUrl, depth, seed, ctx);
 		}
@@ -457,6 +464,9 @@ async function fetchIPFSJson(ipfsUrl, depth = 0, seed = 0, ctx = null) {
 		const responseTime = Date.now() - startTime;
 		if (gatewayType === 'ipfs') ipfsGatewayManager.recordSuccess(url.split('/ipfs/')[0] + '/ipfs/', responseTime);
 		if (gatewayType === 'arweave') arweaveGatewayManager.recordSuccess(url.split('/')[0] + '//' + url.split('/')[2] + '/', responseTime);
+		if (gatewayType === 'filebase') filebaseGatewayManager.recordSuccess(config.ipfs.filebaseGateway, responseTime);
+		if (gatewayType === 'hcs') hcsGatewayManager.recordSuccess('https://tier.bot/api/hashinals-cdn/', responseTime);
+		if (gatewayType === 'direct') directGatewayManager.recordSuccess('direct', responseTime);
 
 		return res.json();
 	}

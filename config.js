@@ -19,7 +19,6 @@ module.exports = {
 			'https://ipfs.eth.aragon.network/ipfs/',
 			'https://ipfs.io/ipfs/',
 			'https://ipfs.eternum.io/ipfs/',
-			'https://cloudflare-ipfs.com/ipfs/',
 			'dweb',
 		],
 		pinBatchSize: 20,

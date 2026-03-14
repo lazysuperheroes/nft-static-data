@@ -1,6 +1,6 @@
 {
   "name": "@lazysuperheroes/nft-static-data",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "NFT static metadata uploader for Hedera - supports Lazy dApp and SecureTrade Marketplace",
   "main": "index.js",
   "exports": {

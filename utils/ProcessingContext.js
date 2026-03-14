@@ -48,6 +48,12 @@ class ProcessingContext {
 			new GatewayManager(config.ipfs.gateways, 'ipfs');
 		this.arweaveGatewayManager = options.arweaveGatewayManager ||
 			new GatewayManager(config.arweave.gateways, 'arweave');
+		this.filebaseGatewayManager = options.filebaseGatewayManager ||
+			new GatewayManager([config.ipfs.filebaseGateway], 'filebase');
+		this.hcsGatewayManager = options.hcsGatewayManager ||
+			new GatewayManager(['https://tier.bot/api/hashinals-cdn/'], 'hcs');
+		this.directGatewayManager = options.directGatewayManager ||
+			new GatewayManager(['direct'], 'direct');
 
 		// Callbacks
 		this.progressCallback = options.progressCallback || null;
@@ -293,6 +299,9 @@ class ProcessingContext {
 	printStats() {
 		this.ipfsGatewayManager.printStats();
 		this.arweaveGatewayManager.printStats();
+		this.filebaseGatewayManager.printStats();
+		this.hcsGatewayManager.printStats();
+		this.directGatewayManager.printStats();
 	}
 
 	/**
